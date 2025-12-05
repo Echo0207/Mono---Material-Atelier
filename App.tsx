@@ -228,10 +228,25 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
     const [filterBrand, setFilterBrand] = useState<string>('');
     const brands: string[] = Array.from(new Set((products || []).map(p => p.brand)));
     
+    // Updated Sorting Logic:
+    // 1. Bundles (New Year Promo) First
+    // 2. Featured items Second
+    // 3. Normal items Last
     const visibleProducts: Product[] = (products || [])
       .filter(p => p.isActive)
       .filter(p => !filterBrand || p.brand === filterBrand)
-      .sort((a, b) => (Number(b.isFeatured) - Number(a.isFeatured)));
+      .sort((a, b) => {
+          // Priority 1: New Year Bundles
+          const aIsBundle = a.promotion?.type === 'BUNDLE' ? 1 : 0;
+          const bIsBundle = b.promotion?.type === 'BUNDLE' ? 1 : 0;
+          
+          if (aIsBundle !== bIsBundle) {
+              return bIsBundle - aIsBundle;
+          }
+          
+          // Priority 2: Featured
+          return Number(b.isFeatured) - Number(a.isFeatured);
+      });
 
     return (
       <div className="pb-24">
