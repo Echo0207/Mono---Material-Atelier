@@ -8,6 +8,13 @@ const KEYS = {
   ANNOUNCEMENT: 'mono_announcement',
 };
 
+// Valid User List
+const VALID_USERS = [
+  'Cooper', 'Dio', 'Eagle', 'Benson', 'Ice', 'Fan', 
+  'Sasa', 'Yuni', 'Gene', 'Reta', 'Jessica', 'Mina', 
+  'Jax', '中平', '中正', '民生', '公司'
+];
+
 // Promotion Config for New Year
 const NEW_YEAR_PROMO = { type: 'BUNDLE', buy: 2, get: 1, note: '新春優惠組' } as const;
 
@@ -857,13 +864,24 @@ const INITIAL_ANNOUNCEMENT: Announcement = {
 };
 
 export const dataService = {
-  // Users (Simple Mock)
-  login: (name: string): User => {
-    const isAdmin = name.trim().toLowerCase() === 'admin';
+  // Users
+  login: (inputName: string): User | null => {
+    const normalizedInput = inputName.trim().toLowerCase();
+    
+    // Find case-insensitive match
+    const match = VALID_USERS.find(u => u.toLowerCase() === normalizedInput);
+    
+    if (!match) {
+        return null;
+    }
+
+    // Role Logic: Only 'Cooper' is ADMIN
+    const role = match.toLowerCase() === 'cooper' ? UserRole.ADMIN : UserRole.DESIGNER;
+
     return {
-      id: name.toLowerCase().replace(/\s/g, '_'),
-      name: name,
-      role: isAdmin ? UserRole.ADMIN : UserRole.DESIGNER,
+      id: match, // Use correct casing for ID
+      name: match, // Use correct casing for Display Name
+      role: role,
     };
   },
 

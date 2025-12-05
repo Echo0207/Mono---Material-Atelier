@@ -1200,7 +1200,15 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
       setError('請輸入您的姓名');
       return;
     }
+    
+    // Check against VALID_USERS via dataService
     const user = dataService.login(name);
+    
+    if (!user) {
+        setError('無此帳號，請確認名稱是否正確 (Not found)');
+        return;
+    }
+    
     onLogin(user);
   };
 
@@ -1211,7 +1219,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
         <p className="text-center text-ink-light mb-12 font-serif text-sm tracking-wider uppercase">物料室管理系統</p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative border-b border-ink-light/50 focus-within:border-accent transition-colors">
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="請輸入姓名進入系統" className="w-full bg-transparent py-3 px-2 outline-none text-lg font-serif placeholder:text-ink-light/50" />
+            <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(''); }} placeholder="請輸入姓名進入系統" className="w-full bg-transparent py-3 px-2 outline-none text-lg font-serif placeholder:text-ink-light/50" />
           </div>
           {error && <p className="text-accent text-xs mt-2">{error}</p>}
           <button type="submit" className="w-full bg-ink text-paper py-4 mt-8 font-bold tracking-widest hover:bg-ink-light transition-colors uppercase text-sm">進入系統</button>
