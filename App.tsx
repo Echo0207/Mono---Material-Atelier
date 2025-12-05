@@ -1215,7 +1215,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-paper text-ink">
       <div className="w-full max-w-sm">
-        <h1 className="text-4xl font-serif font-bold text-center mb-2 tracking-widest">MONO</h1>
+        <h1 className="text-4xl font-serif font-bold text-center mb-2 tracking-widest">TiAM</h1>
         <p className="text-center text-ink-light mb-12 font-serif text-sm tracking-wider uppercase">物料室管理系統</p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative border-b border-ink-light/50 focus-within:border-accent transition-colors">
