@@ -24,7 +24,9 @@ import {
   ArrowDown,
   List,
   BarChart2,
-  Download
+  Download,
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -525,7 +527,16 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     };
 
     // Person View: Only deals with Order Level Status
-    const performOrderAction = (action: 'ACCEPTED' | 'PACKED') => {
+    const performOrderAction = (action: 'ACCEPTED' | 'PACKED' | 'DELETE') => {
+      if (action === 'DELETE') {
+          if (!window.confirm(`確定要刪除選取的 ${selectedOrders.size} 筆訂單嗎？此動作無法復原。`)) return;
+          
+          selectedOrders.forEach(id => dataService.deleteOrder(id));
+          setSelectedOrders(new Set());
+          onRefresh();
+          return;
+      }
+
       let status: OrderStatus;
       if (action === 'ACCEPTED') status = OrderStatus.LOCKED; // Mapped to Accepted/Locked
       else status = OrderStatus.PACKED;
@@ -597,7 +608,10 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     };
 
     const runAutoLock = () => {
-        if (!lockDate) return;
+        if (!lockDate) {
+            alert('請選擇自動鎖單時間 (Please select a date and time)');
+            return;
+        }
         
         const targetTime = new Date(lockDate).getTime();
         const now = Date.now();
@@ -606,33 +620,51 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         console.log(`[AutoLock Debug] Setup - Now: ${new Date().toLocaleString()}, Target: ${new Date(targetTime).toLocaleString()}, Delay: ${delay}ms`);
 
         if (delay < 0) {
-            alert('請選擇未來的時間 (Please select a future time)');
+            // If time is past, execute logic immediately
+            console.log("[AutoLock Debug] Time is past, executing immediately.");
+            executeLock();
+            setScheduledLockInfo(null);
+            alert('自動鎖單執行完成 (Time was in past, executed immediately)');
             return;
         }
 
-        // Schedule the lock
-        setTimeout(() => {
-            console.log("[AutoLock Debug] Timer fired. Checking orders...");
-            const currentOrders = dataService.getOrders();
-            // Target: All PENDING orders
-            const toLock = currentOrders.filter(o => o.status === OrderStatus.PENDING);
-            console.log(`[AutoLock Debug] Found ${toLock.length} pending orders to lock.`);
-            
-            if (toLock.length > 0) {
-                const updated = toLock.map(o => ({...o, status: OrderStatus.LOCKED}));
-                dataService.updateOrderBatch(updated);
-                console.log("[AutoLock Debug] Orders locked in storage.");
-                
-                // CRITICAL: Refresh UI
-                onRefresh();
-                console.log("[AutoLock Debug] UI Refresh called.");
-            } else {
-                console.log("[AutoLock Debug] No pending orders to lock.");
-            }
-        }, delay);
+        // Schedule interval to check time
+        const intervalId = setInterval(() => {
+             const currentTime = Date.now();
+             // Check if we passed the target time (allow 1 minute buffer for execution window)
+             if (currentTime >= targetTime) {
+                 console.log("[AutoLock Debug] Interval Triggered!");
+                 executeLock();
+                 clearInterval(intervalId); // Stop checking
+                 setScheduledLockInfo(null);
+             }
+        }, 10000); // Check every 10 seconds
 
         setScheduledLockInfo(lockDate);
         alert('自動鎖單設定成功');
+    };
+
+    const executeLock = () => {
+         console.log("[AutoLock Debug] Executing Lock Logic...");
+         const currentOrders = dataService.getOrders();
+         
+         // Lock ALL orders that are currently PENDING
+         const toLock = currentOrders.filter(o => o.status === OrderStatus.PENDING);
+         console.log(`[AutoLock Debug] Found ${toLock.length} pending orders to lock.`);
+         
+         if (toLock.length > 0) {
+             const updated = toLock.map(o => {
+                 // Lock order status
+                 const newOrder = {...o, status: OrderStatus.LOCKED};
+                 // Lock all items within order
+                 newOrder.items = o.items.map(i => ({...i, status: OrderStatus.LOCKED}));
+                 return newOrder;
+             });
+             
+             dataService.updateOrderBatch(updated);
+             console.log("[AutoLock Debug] Orders updated in storage.");
+             onRefresh(); // Refresh UI
+         }
     };
 
     const exportMonthlyDetails = () => {
@@ -739,7 +771,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     };
 
     // Shared Action Bar
-    const PersonActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACCEPTED' | 'PACKED') => void }) => (
+    const PersonActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACCEPTED' | 'PACKED' | 'DELETE') => void }) => (
         <div className="bg-white p-4 shadow-sm space-y-4 rounded-lg mb-6">
             <div className="flex gap-2">
                 <button onClick={() => onAction('ACCEPTED')} disabled={selectedCount===0} className="flex-1 flex flex-col items-center justify-center bg-green-600 text-white py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
@@ -748,17 +780,11 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                 <button onClick={() => onAction('PACKED')} disabled={selectedCount===0} className="flex-1 flex flex-col items-center justify-center bg-blue-600 text-white py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
                     <Box size={18} className="mb-1"/><span className="text-xs font-bold">已整理 (鎖單)</span>
                 </button>
+                <button onClick={() => onAction('DELETE')} disabled={selectedCount===0} className="w-12 flex flex-col items-center justify-center bg-red-100 text-red-600 border border-red-200 py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
+                    <Trash2 size={18} className="mb-1"/>
+                    <span className="text-[10px] font-bold">刪除</span>
+                </button>
             </div>
-             <div className="flex items-center gap-2 pt-3 border-t">
-                <Calendar size={16} className="text-gray-500" />
-                <input type="datetime-local" className="text-xs border p-1 rounded bg-gray-50 flex-1" value={lockDate} onChange={(e) => setLockDate(e.target.value)} />
-                <button onClick={runAutoLock} className="text-[10px] border border-gray-300 px-3 py-1 uppercase hover:bg-gray-100 rounded font-bold text-gray-600">自動鎖定</button>
-             </div>
-             {scheduledLockInfo && (
-                 <div className="text-[10px] text-green-600 bg-green-50 p-2 rounded text-center font-bold">
-                     已設定於 {new Date(scheduledLockInfo).toLocaleString()} 自動鎖單
-                 </div>
-             )}
         </div>
     );
 
@@ -887,119 +913,157 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     )}
                 </div>
 
-                {/* ---------------- ORDERS: PERSON VIEW ---------------- */}
-                {subTab === 'orders' && viewMode === 'person' && (
-                    <div className="space-y-4">
-                        <PersonActionBar selectedCount={selectedOrders.size} onAction={performOrderAction} />
-                        {Array.from(new Set(orders.map(o => o.userName))).map(uName => {
-                            const userOrders = orders.filter(o => o.userName === uName);
-                            return (
-                                <div key={uName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 font-serif font-bold flex justify-between">
-                                        <span>{uName}</span>
-                                        <span className="text-xs font-sans font-normal text-gray-500">{userOrders.length} 筆訂單</span>
-                                    </div>
-                                    <div>
-                                        {userOrders.map(o => (
-                                            <label key={o.id} className="flex gap-3 p-4 border-b last:border-0 hover:bg-gray-50 cursor-pointer">
-                                                <input type="checkbox" checked={selectedOrders.has(o.id)} onChange={() => toggleOrderSelection(o.id)} className="mt-1 w-4 h-4" />
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between text-xs mb-1">
-                                                        {getStatusBadge(o.status)}
-                                                        <span className="text-gray-400">{formatDate(o.timestamp)}</span>
-                                                    </div>
-                                                    <ul className="text-sm space-y-1">
-                                                        {o.items.map((item, i) => (
-                                                            <li key={i} className="flex justify-between items-center">
-                                                                <div className="flex items-center gap-2">
-                                                                    {item.status && item.status !== OrderStatus.PENDING && (
-                                                                        <span className="scale-75 origin-left">{getStatusBadge(item.status)}</span>
-                                                                    )}
-                                                                    <span className={`text-gray-700 ${item.status === OrderStatus.OUT_OF_STOCK ? 'line-through opacity-50' : ''}`}>{item.productName}</span>
-                                                                </div>
-                                                                <span className="text-gray-400">
-                                                                    {item.bundleQuantity ? `x${item.bundleQuantity} 組` : `x${item.quantity}`}
-                                                                    {item.freeQuantity > 0 && <span className="text-red-500 text-[10px] ml-1">+{item.freeQuantity}</span>}
-                                                                </span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
+                {/* ---------------- ORDERS TAB CONTENT ---------------- */}
+                {subTab === 'orders' && (
+                    <>
+                        {/* GLOBAL AUTO LOCK SECTION */}
+                        <div className="bg-white p-4 shadow-sm rounded-lg mb-6 border border-yellow-100 bg-yellow-50/30">
+                            <h4 className="font-bold text-sm mb-3 text-ink flex items-center gap-2">
+                                <Clock size={16} className="text-amber-600"/> 自動鎖單排程 (Auto Lock)
+                            </h4>
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <input 
+                                        type="datetime-local" 
+                                        className="w-full text-xs border border-gray-300 p-2 rounded bg-white focus:outline-none focus:border-ink" 
+                                        value={lockDate} 
+                                        onChange={(e) => setLockDate(e.target.value)} 
+                                    />
                                 </div>
-                            )
-                        })}
-                    </div>
-                )}
+                                <button 
+                                    onClick={runAutoLock} 
+                                    className="bg-ink hover:bg-ink-light text-white px-4 py-2 rounded text-xs font-bold whitespace-nowrap transition-colors"
+                                >
+                                    設定排程
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-2 flex items-center gap-1">
+                                <AlertCircle size={10} /> 設定後系統將於指定時間自動將所有「未處理」訂單轉為「已受理」
+                            </p>
+                            
+                            {scheduledLockInfo && (
+                                <div className="mt-3 text-xs text-green-700 bg-green-100 border border-green-200 p-2 rounded flex items-center justify-center gap-2 font-bold animate-in fade-in">
+                                    <CheckCircle size={14}/>
+                                    已排程於 {new Date(scheduledLockInfo).toLocaleString('zh-TW', {hour12: false})} 執行自動鎖單
+                                </div>
+                            )}
+                        </div>
 
-                {/* ---------------- ORDERS: BRAND VIEW ---------------- */}
-                {subTab === 'orders' && viewMode === 'brand' && (
-                    <div className="space-y-6">
-                        <BrandActionBar selectedCount={selectedProducts.size} onAction={performBrandAction} />
-                        
-                        {Object.entries(itemsByBrand).map(([brand, products]: [string, any]) => (
-                            <div key={brand} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="bg-ink text-paper px-4 py-2 font-serif uppercase tracking-widest text-sm font-bold">{brand}</div>
-                                <div className="divide-y divide-gray-100">
-                                    {(Object.values(products || {}) as any[]).map((p: any, idx: number) => (
-                                        <div key={idx} className="group hover:bg-gray-50">
-                                            <div className="flex items-center p-3 gap-3">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedProducts.has(p.id)} 
-                                                    onChange={() => toggleProductSelection(p.id)}
-                                                    onClick={(e) => e.stopPropagation()} 
-                                                    className="w-4 h-4 cursor-pointer" 
-                                                />
-                                                <details className="flex-1 group/details" open={false}>
-                                                    <summary className="flex justify-between items-center cursor-pointer list-none">
-                                                        <div>
-                                                            <p className="font-bold text-sm text-gray-800">{p.name}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-3">
-                                                            {/* Show TOTAL units (Paid + Free) for warehouse picking */}
-                                                            <span className="text-lg font-serif font-bold text-ink" title="總領料數 (付費+贈品)">{p.totalQty}</span>
-                                                            <ChevronRight size={14} className="text-gray-300 group-open/details:rotate-90 transition-transform"/>
-                                                        </div>
-                                                    </summary>
-                                                    <div className="mt-2 pl-2 border-l-2 border-gray-100 space-y-1 cursor-default">
-                                                        {p.orders.map((o: any, i: number) => (
-                                                            <div key={i} className="flex justify-between text-xs text-gray-600 py-0.5">
-                                                                <span>{o.userName}</span>
-                                                                <div className="flex items-center gap-2">
-                                                                    {o.itemStatus && o.itemStatus !== OrderStatus.PENDING ? getStatusBadge(o.itemStatus) : getStatusBadge(o.status)}
-                                                                    <span className="font-mono">
-                                                                        {o.freeQty > 0 ? (
-                                                                            <span className="font-bold text-ink">
-                                                                                {o.qty} <span className="text-red-500">+{o.freeQty}</span>
-                                                                            </span>
-                                                                        ) : (
-                                                                            `x${o.qty}`
-                                                                        )}
-                                                                    </span>
-                                                                </div>
+                        {/* PERSON VIEW */}
+                        {viewMode === 'person' && (
+                            <div className="space-y-4">
+                                <PersonActionBar selectedCount={selectedOrders.size} onAction={performOrderAction} />
+                                {Array.from(new Set(orders.map(o => o.userName))).map(uName => {
+                                    const userOrders = orders.filter(o => o.userName === uName);
+                                    return (
+                                        <div key={uName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 font-serif font-bold flex justify-between">
+                                                <span>{uName}</span>
+                                                <span className="text-xs font-sans font-normal text-gray-500">{userOrders.length} 筆訂單</span>
+                                            </div>
+                                            <div>
+                                                {userOrders.map(o => (
+                                                    <label key={o.id} className="flex gap-3 p-4 border-b last:border-0 hover:bg-gray-50 cursor-pointer">
+                                                        <input type="checkbox" checked={selectedOrders.has(o.id)} onChange={() => toggleOrderSelection(o.id)} className="mt-1 w-4 h-4" />
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between text-xs mb-1">
+                                                                {getStatusBadge(o.status)}
+                                                                <span className="text-gray-400">{formatDate(o.timestamp)}</span>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </details>
+                                                            <ul className="text-sm space-y-1">
+                                                                {o.items.map((item, i) => (
+                                                                    <li key={i} className="flex justify-between items-center">
+                                                                        <div className="flex items-center gap-2">
+                                                                            {item.status && item.status !== OrderStatus.PENDING && (
+                                                                                <span className="scale-75 origin-left">{getStatusBadge(item.status)}</span>
+                                                                            )}
+                                                                            <span className={`text-gray-700 ${item.status === OrderStatus.OUT_OF_STOCK ? 'line-through opacity-50' : ''}`}>{item.productName}</span>
+                                                                        </div>
+                                                                        <span className="text-gray-400">
+                                                                            {item.bundleQuantity ? `x${item.bundleQuantity} 組` : `x${item.quantity}`}
+                                                                            {item.freeQuantity > 0 && <span className="text-red-500 text-[10px] ml-1">+{item.freeQuantity}</span>}
+                                                                        </span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </label>
+                                                ))}
                                             </div>
                                         </div>
-                                    ))}
+                                    )
+                                })}
+                            </div>
+                        )}
+
+                        {/* BRAND VIEW */}
+                        {viewMode === 'brand' && (
+                            <div className="space-y-6">
+                                <BrandActionBar selectedCount={selectedProducts.size} onAction={performBrandAction} />
+                                
+                                {Object.entries(itemsByBrand).map(([brand, products]: [string, any]) => (
+                                    <div key={brand} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                        <div className="bg-ink text-paper px-4 py-2 font-serif uppercase tracking-widest text-sm font-bold">{brand}</div>
+                                        <div className="divide-y divide-gray-100">
+                                            {(Object.values(products || {}) as any[]).map((p: any, idx: number) => (
+                                                <div key={idx} className="group hover:bg-gray-50">
+                                                    <div className="flex items-center p-3 gap-3">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedProducts.has(p.id)} 
+                                                            onChange={() => toggleProductSelection(p.id)}
+                                                            onClick={(e) => e.stopPropagation()} 
+                                                            className="w-4 h-4 cursor-pointer" 
+                                                        />
+                                                        <details className="flex-1 group/details" open={false}>
+                                                            <summary className="flex justify-between items-center cursor-pointer list-none">
+                                                                <div>
+                                                                    <p className="font-bold text-sm text-gray-800">{p.name}</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    {/* Show TOTAL units (Paid + Free) for warehouse picking */}
+                                                                    <span className="text-lg font-serif font-bold text-ink" title="總領料數 (付費+贈品)">{p.totalQty}</span>
+                                                                    <ChevronRight size={14} className="text-gray-300 group-open/details:rotate-90 transition-transform"/>
+                                                                </div>
+                                                            </summary>
+                                                            <div className="mt-2 pl-2 border-l-2 border-gray-100 space-y-1 cursor-default">
+                                                                {p.orders.map((o: any, i: number) => (
+                                                                    <div key={i} className="flex justify-between text-xs text-gray-600 py-0.5">
+                                                                        <span>{o.userName}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {o.itemStatus && o.itemStatus !== OrderStatus.PENDING ? getStatusBadge(o.itemStatus) : getStatusBadge(o.status)}
+                                                                            <span className="font-mono">
+                                                                                {o.freeQty > 0 ? (
+                                                                                    <span className="font-bold text-ink">
+                                                                                        {o.qty} <span className="text-red-500">+{o.freeQty}</span>
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    `x${o.qty}`
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </details>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <div className="mt-8 border-t pt-6 text-center">
+                                    <button 
+                                        onClick={exportMonthlyDetails}
+                                        className="inline-flex items-center gap-2 bg-ink text-white px-6 py-3 rounded-full shadow-lg hover:bg-ink-light transition-colors text-sm font-bold tracking-widest"
+                                    >
+                                        <Download size={16} /> 匯出當月明細
+                                    </button>
                                 </div>
                             </div>
-                        ))}
-                        
-                        <div className="mt-8 border-t pt-6 text-center">
-                            <button 
-                                onClick={exportMonthlyDetails}
-                                className="inline-flex items-center gap-2 bg-ink text-white px-6 py-3 rounded-full shadow-lg hover:bg-ink-light transition-colors text-sm font-bold tracking-widest"
-                            >
-                                <Download size={16} /> 匯出當月明細
-                            </button>
-                        </div>
-                    </div>
+                        )}
+                    </>
                 )}
 
                 {/* ---------------- INVENTORY ---------------- */}
