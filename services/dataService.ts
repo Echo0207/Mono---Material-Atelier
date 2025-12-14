@@ -10,6 +10,7 @@ import {
   onSnapshot, 
   query, 
   orderBy,
+  writeBatch,
   Firestore 
 } from 'firebase/firestore';
 
@@ -898,11 +899,10 @@ const RAW_PRODUCTS = [
 ];
 
 const INITIAL_PRODUCTS: Product[] = RAW_PRODUCTS.map((p, index) => {
-  // Logic to identify New Year Bundles
   let isBundle = false;
   
   if (p.brand === '威傑士') {
-     isBundle = true; // All Wajass items are bundles based on second CSV matching the main list
+     isBundle = true; 
   }
   
   if (p.brand === '施華蔻' && (p.name === '水漾質感中和膏' || p.name === '俏翎蘆薈中和水1000ml')) {
@@ -913,15 +913,22 @@ const INITIAL_PRODUCTS: Product[] = RAW_PRODUCTS.map((p, index) => {
      isBundle = true;
   }
 
-  return {
+  // Construct base object without conditional properties first
+  const product: Product = {
     id: `prod_${String(index + 1).padStart(3, '0')}`,
     brand: p.brand,
     name: p.name,
     costPrice: p.cost,
     isActive: true,
     isFeatured: false,
-    promotion: isBundle ? NEW_YEAR_PROMO : undefined
   };
+
+  // Only add promotion if it exists (avoid undefined)
+  if (isBundle) {
+      product.promotion = NEW_YEAR_PROMO;
+  }
+
+  return product;
 });
 
 export const dataService = {
@@ -951,28 +958,101 @@ export const dataService = {
     localStorage.setItem(KEYS.ANNOUNCEMENT, JSON.stringify(announcement));
   },
 
-  // Products (Keep local for now as it's static catalog)
+  // Products
+  // Subscribes to the products collection. If empty, seeds it with INITIAL_PRODUCTS.
+  subscribeToProducts: (callback: (products: Product[]) => void) => {
+      if (!isDbEnabled || !db) {
+          // Fallback to local storage logic
+          const stored = localStorage.getItem(KEYS.PRODUCTS);
+          const initial = stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
+          if (!stored) localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
+          
+          callback(initial);
+          
+          // Poll for local changes (simple hack for local mode sync across tabs/components if needed)
+          const interval = setInterval(() => {
+              const current = localStorage.getItem(KEYS.PRODUCTS);
+              if (current) callback(JSON.parse(current));
+          }, 2000);
+          return () => clearInterval(interval);
+      }
+
+      // Simplified query to avoid requiring a composite index.
+      // We sort only by brand here, and perform secondary sorting (by name) in the client callback.
+      const q = query(collection(db, "products"), orderBy("brand"));
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
+          if (snapshot.empty) {
+              // Seed data if DB is empty
+              console.log('[System] Database empty. Seeding initial products...');
+              const chunkSize = 450; // Firestore batch limit is 500
+              for (let i = 0; i < INITIAL_PRODUCTS.length; i += chunkSize) {
+                  const chunk = INITIAL_PRODUCTS.slice(i, i + chunkSize);
+                  const batch = writeBatch(db);
+                  chunk.forEach(p => {
+                      // Ensure no undefined values are passed to Firestore
+                      const cleanP = JSON.parse(JSON.stringify(p));
+                      const ref = doc(db, "products", p.id);
+                      batch.set(ref, cleanP);
+                  });
+                  await batch.commit();
+              }
+              console.log('[System] Seeding complete.');
+              // Snapshot will fire again automatically after write
+          } else {
+              const products: Product[] = [];
+              snapshot.forEach(doc => products.push(doc.data() as Product));
+              
+              // Client-side sort to ensure consistent order (Brand -> Name)
+              products.sort((a, b) => {
+                  if (a.brand !== b.brand) {
+                      return a.brand.localeCompare(b.brand, 'zh-TW');
+                  }
+                  return a.name.localeCompare(b.name, 'zh-TW');
+              });
+              
+              callback(products);
+          }
+      });
+      return unsubscribe;
+  },
+
+  saveProduct: async (product: Product) => {
+    if (isDbEnabled && db) {
+        // Firestore doesn't accept undefined values.
+        // We sanitize the object by removing keys with undefined values.
+        const safeProduct = JSON.parse(JSON.stringify(product));
+        await setDoc(doc(db, "products", product.id), safeProduct);
+    } else {
+        const products = dataService.getProductsLocal();
+        const index = products.findIndex(p => p.id === product.id);
+        if (index >= 0) products[index] = product;
+        else products.push(product);
+        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+    }
+  },
+
+  deleteProduct: async (id: string) => {
+    if (isDbEnabled && db) {
+        await deleteDoc(doc(db, "products", id));
+    } else {
+        const products = dataService.getProductsLocal().filter(p => p.id !== id);
+        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+    }
+  },
+
+  // Helper for local fallback
+  getProductsLocal: (): Product[] => {
+    const stored = localStorage.getItem(KEYS.PRODUCTS);
+    return stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
+  },
+
+  // Products (Public getter for initial load if needed, but prefer subscription)
   getProducts: (): Product[] => {
     const stored = localStorage.getItem(KEYS.PRODUCTS);
     if (!stored) {
-      // In a real app, we might seed this to Firestore once
-      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
       return INITIAL_PRODUCTS;
     }
     return JSON.parse(stored);
-  },
-
-  saveProduct: (product: Product) => {
-    const products = dataService.getProducts();
-    const index = products.findIndex(p => p.id === product.id);
-    if (index >= 0) products[index] = product;
-    else products.push(product);
-    localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
-  },
-
-  deleteProduct: (id: string) => {
-    const products = dataService.getProducts().filter(p => p.id !== id);
-    localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
   },
 
   // --- REAL-TIME ORDER SYSTEM (FIRESTORE) ---

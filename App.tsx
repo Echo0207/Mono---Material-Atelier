@@ -643,7 +643,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         document.body.removeChild(link);
     };
 
-    const handleInventorySubmit = (e: React.FormEvent) => {
+    const handleInventorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const promotion = promoType === 'NONE' ? undefined : { type: promoType, ...promoForm };
         const newProduct = {
@@ -652,7 +652,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
             promotion: promotion as Promotion | undefined
         } as Product;
 
-        dataService.saveProduct(newProduct);
+        await dataService.saveProduct(newProduct);
         setEditingProduct(null);
         setFormData({ name: '', brand: '', costPrice: 0, isActive: true, isFeatured: false });
         setPromoType('NONE');
@@ -1197,22 +1197,26 @@ export default function App() {
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useEffect(() => {
-    setProducts(dataService.getProducts());
     setAnnouncement(dataService.getAnnouncement());
 
     setIsLoadingOrders(true);
-    const unsubscribe = dataService.subscribeToOrders((newOrders) => {
+    const unsubscribeOrders = dataService.subscribeToOrders((newOrders) => {
         setOrders(newOrders);
         setIsLoadingOrders(false);
     });
 
+    // Subscribe to Products
+    const unsubscribeProducts = dataService.subscribeToProducts((newProducts) => {
+        setProducts(newProducts);
+    });
+
     return () => {
-        if (unsubscribe) unsubscribe();
+        if (unsubscribeOrders) unsubscribeOrders();
+        if (unsubscribeProducts) unsubscribeProducts();
     };
   }, []);
 
   const refreshData = () => {
-    setProducts(dataService.getProducts());
     setAnnouncement(dataService.getAnnouncement());
   };
 
