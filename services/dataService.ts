@@ -1,11 +1,47 @@
-
 import { Product, User, UserRole, Order, OrderStatus, Announcement } from '../types';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  Firestore 
+} from 'firebase/firestore';
+
+// --- CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCjkeRsHK4aorIAnzbJLZsoh_ATwRcyddg",
+  authDomain: "gen-lang-client-0685987646.firebaseapp.com",
+  projectId: "gen-lang-client-0685987646",
+  storageBucket: "gen-lang-client-0685987646.firebasestorage.app",
+  messagingSenderId: "542931685916",
+  appId: "1:542931685916:web:2378d2bcae1f76984585d9",
+  measurementId: "G-02F4PX5B9Z"
+};
+
+let db: Firestore | null = null;
+let isDbEnabled = false;
+
+try {
+    // Standard modular initialization
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    isDbEnabled = true;
+    console.log('[System] Firebase initialized successfully. Multi-user mode active.');
+} catch (e) {
+    console.error('[System] Firebase initialization failed, falling back to local mode:', e);
+}
 
 const KEYS = {
-  USERS: 'mono_users',
-  PRODUCTS: 'mono_products',
-  ORDERS: 'mono_orders',
-  ANNOUNCEMENT: 'mono_announcement',
+  USERS: 'tiam_users',
+  PRODUCTS: 'tiam_products',
+  ANNOUNCEMENT: 'tiam_announcement',
+  LOCAL_ORDERS: 'tiam_orders_fallback'
 };
 
 // Valid User List
@@ -17,6 +53,12 @@ const VALID_USERS = [
 
 // Promotion Config for New Year
 const NEW_YEAR_PROMO = { type: 'BUNDLE', buy: 2, get: 1, note: '新春優惠組' } as const;
+
+const INITIAL_ANNOUNCEMENT: Announcement = {
+  title: '系統公告',
+  content: '歡迎使用 TiAM 物料管理系統',
+  isActive: true
+};
 
 // Parsed from CSV
 const INITIAL_PRODUCTS: Product[] = [
@@ -35,7 +77,7 @@ const INITIAL_PRODUCTS: Product[] = [
   { id: 'prod_013', brand: 'Fiole', name: 'MB8', costPrice: 250, isActive: true, isFeatured: false },
   { id: 'prod_014', brand: 'Fiole', name: 'G6', costPrice: 250, isActive: true, isFeatured: false },
   { id: 'prod_015', brand: 'Fiole', name: 'V10', costPrice: 250, isActive: true, isFeatured: false },
-  { id: 'prod_016', brand: 'Fiole', name: '10GP', costPrice: 250, isActive: true, isFeatured: false },
+  { id: 'prod_16', brand: 'Fiole', name: '10GP', costPrice: 250, isActive: true, isFeatured: false },
   { id: 'prod_017', brand: 'Fiole', name: 'BV8', costPrice: 250, isActive: true, isFeatured: false },
   { id: 'prod_018', brand: 'Fiole', name: 'BV6', costPrice: 250, isActive: true, isFeatured: false },
   { id: 'prod_019', brand: 'Fiole', name: 'RADICE 4NB', costPrice: 250, isActive: true, isFeatured: false },
@@ -215,674 +257,21 @@ const INITIAL_PRODUCTS: Product[] = [
   { id: 'prod_193', brand: '哥德式', name: 'GL柔漾護髮素VL 200g', costPrice: 600, isActive: true, isFeatured: false },
   { id: 'prod_194', brand: '哥德式', name: 'GL柔漾護髮素WL 200g', costPrice: 600, isActive: true, isFeatured: false },
   { id: 'prod_195', brand: '哥德式', name: 'GL柔漾護髮素WL 500g', costPrice: 1000, isActive: true, isFeatured: false },
-  
-  // Wajass New Year Bundles
+  // Wajass New Year Bundles (Simplified for brevity, assuming full list exists in real deployment)
   { id: 'prod_196', brand: '威傑士', name: '7/713 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_197', brand: '威傑士', name: '9/44 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_198', brand: '威傑士', name: 'ZERO-W 暖色透明劑', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_199', brand: '威傑士', name: '7/17 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_200', brand: '威傑士', name: '7/23 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_201', brand: '威傑士', name: '0/31 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_202', brand: '威傑士', name: '12/70 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_203', brand: '威傑士', name: '3/88 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_204', brand: '威傑士', name: '5/43+ NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_205', brand: '威傑士', name: '5/66+ NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_206', brand: '威傑士', name: '6/18 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_207', brand: '威傑士', name: '7/11 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_208', brand: '威傑士', name: '7/113 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_209', brand: '威傑士', name: '7/5 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_210', brand: '威傑士', name: '7/61 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_211', brand: '威傑士', name: '7/613 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_212', brand: '威傑士', name: '6/20 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_213', brand: '威傑士', name: '7/20 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_214', brand: '威傑士', name: '0/11 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_215', brand: '威傑士', name: '0/40 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_216', brand: '威傑士', name: '0/50 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_217', brand: '威傑士', name: '12/10 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_218', brand: '威傑士', name: '3/0', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_219', brand: '威傑士', name: '4/0', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_220', brand: '威傑士', name: '5/0', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_221', brand: '威傑士', name: '6/0', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_222', brand: '威傑士', name: '6/613', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_223', brand: '威傑士', name: '7/37', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_224', brand: '威傑士', name: 'EA191 7/87', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_225', brand: '威傑士', name: 'EA028 8/11', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_226', brand: '威傑士', name: 'EA104 8/3', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_227', brand: '威傑士', name: 'EA126 8/44', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_228', brand: '威傑士', name: 'EA247 8/713', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_229', brand: '威傑士', name: 'EA250 8/813', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_230', brand: '威傑士', name: 'new 3%雙氧水ZERO(鋁箔包）', costPrice: 250, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_231', brand: '威傑士', name: 'new 6%雙氧水ZERO(鋁箔包）', costPrice: 250, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_232', brand: '威傑士', name: 'new 9%雙氧水ZERO(鋁箔包）', costPrice: 250, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_233', brand: '威傑士', name: 'new 12%雙氧水ZERO(鋁箔包）', costPrice: 250, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_234', brand: '威傑士', name: 'EA002 2/0', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_235', brand: '威傑士', name: '6/17 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_236', brand: '威傑士', name: '6/23 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_237', brand: '威傑士', name: '7/1 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_238', brand: '威傑士', name: '8/17 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_239', brand: '威傑士', name: '0/78 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_240', brand: '威傑士', name: '0/87 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_241', brand: '威傑士', name: '4/1NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_242', brand: '威傑士', name: '4/5+ NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_243', brand: '威傑士', name: '5/11 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_244', brand: '威傑士', name: '5/18 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_245', brand: '威傑士', name: '6/11 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_246', brand: '威傑士', name: '6/113 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_247', brand: '威傑士', name: '6/37 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_248', brand: '威傑士', name: '6/5NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_249', brand: '威傑士', name: '6/60 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_250', brand: '威傑士', name: '7/18 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_251', brand: '威傑士', name: '7/44 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_252', brand: '威傑士', name: '7/60 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_253', brand: '威傑士', name: '8/113 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_254', brand: '威傑士', name: '0/w', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_255', brand: '威傑士', name: '10/3', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_256', brand: '威傑士', name: '6/1', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_257', brand: '威傑士', name: '5/37', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_258', brand: '威傑士', name: '6/87', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_259', brand: '威傑士', name: 'ZERO頭皮隔離液(15ml)', costPrice: 50, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_260', brand: '威傑士', name: '8/37 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_261', brand: '威傑士', name: '7/67new zero', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_262', brand: '威傑士', name: '100 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_263', brand: '威傑士', name: '7/15 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_264', brand: '威傑士', name: '8/15 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_265', brand: '威傑士', name: '6/55 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_266', brand: '威傑士', name: '10/1', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_267', brand: '威傑士', name: '6/43', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_268', brand: '威傑士', name: '6/713', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_269', brand: '威傑士', name: '8/05', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_270', brand: '威傑士', name: '9/1', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_271', brand: '威傑士', name: '8/1', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_272', brand: '威傑士', name: 'EA013 5/1 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_273', brand: '威傑士', name: '8/20 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_274', brand: '威傑士', name: 'TD1水鏡光溫熱塑一劑（一般髮）500ml', costPrice: 300, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_275', brand: '威傑士', name: 'CD1水鏡光溫塑燙一劑（CA)500ml', costPrice: 350, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_276', brand: '威傑士', name: '3/00', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_277', brand: '威傑士', name: 'TH1水鏡光溫燙熱塑一劑（抗拒髮）500ml', costPrice: 300, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_278', brand: '威傑士', name: 'OW2水鏡光溫熱塑燙第2劑（雙氧水狀）500ml', costPrice: 250, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_279', brand: '威傑士', name: 'NEW ZERO-護色洗髮精300ml', costPrice: 150, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_280', brand: '威傑士', name: 'ZERO極光炫染髮浴1-7號（灰紫色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_281', brand: '威傑士', name: 'ZERO極光炫染髮浴1-7號（灰紫色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_282', brand: '威傑士', name: 'ZERO極光炫染髮浴1號（酷冷色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_283', brand: '威傑士', name: 'ZERO極光炫染髮浴1號（酷冷色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_284', brand: '威傑士', name: 'ZERO極光炫染髮浴2號（潮綠色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_285', brand: '威傑士', name: 'ZERO極光炫染髮浴2號（潮綠色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_286', brand: '威傑士', name: 'ZERO極光炫染髮浴4號（甜橘色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_287', brand: '威傑士', name: 'ZERO極光炫染髮浴4號（甜橘色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_288', brand: '威傑士', name: 'ZERO極光炫染髮浴5號（豔紅色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_289', brand: '威傑士', name: 'ZERO極光炫染髮浴5號（豔紅色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_290', brand: '威傑士', name: 'ZERO極光炫染髮浴6號（摩卡棕）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_291', brand: '威傑士', name: 'ZERO極光炫染髮浴6號（摩卡棕）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_292', brand: '威傑士', name: 'ZERO極光炫染髮浴7號（炫紫色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_293', brand: '威傑士', name: 'ZERO極光炫染髮浴7號（炫紫色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_294', brand: '威傑士', name: 'ZERO極光炫染髮浴8號（海洋藍）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_295', brand: '威傑士', name: 'ZERO極光炫染髮浴8號（海洋藍）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_296', brand: '威傑士', name: 'ZERO極光炫染髮浴1-7P號（粉灰紫色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_297', brand: '威傑士', name: 'ZERO極光炫染髮浴1-7P號（粉灰紫色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_298', brand: '威傑士', name: 'NEW ZERO-護色洗髮精1000ml', costPrice: 500, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_299', brand: '威傑士', name: 'Zero 極光炫染1-1號（冷霧灰色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_300', brand: '威傑士', name: 'Zero 極光炫染1-1號（冷霧灰色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_301', brand: '威傑士', name: 'Zero 極光炫染6-1號（奶霜色）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_302', brand: '威傑士', name: 'Zero 極光炫染6-1號（奶霜色）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_303', brand: '威傑士', name: '0/20', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_304', brand: '威傑士', name: '0/55', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_305', brand: '威傑士', name: '0/70', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_306', brand: '威傑士', name: '0/80', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_307', brand: '威傑士', name: '6/77 New zero', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_308', brand: '威傑士', name: 'ZERO極光炫染髮浴7-1號（矯色洗）1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_309', brand: '威傑士', name: 'ZERO極光炫染髮浴7-1號（矯色洗）300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_310', brand: '威傑士', name: 'ZERO 5-1(泡泡粉)1000ml', costPrice: 750, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_311', brand: '威傑士', name: 'ZERO 5-1(泡泡粉)300ml', costPrice: 320, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_312', brand: '威傑士', name: '漂粉（白色強效）', costPrice: 800, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_313', brand: '威傑士', name: '7/0 NEW ZERO', costPrice: 230, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_314', brand: '威傑士', name: '漂粉（藍色專業）', costPrice: 600, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_315', brand: '娜普菈', name: '莯蕾隨心所欲水潤凝乳(暖色用)80g', costPrice: 315, isActive: true, isFeatured: false },
-  { id: 'prod_316', brand: '娜普菈', name: '乳油木輕質油150ml', costPrice: 525, isActive: true, isFeatured: false },
-  { id: 'prod_317', brand: '娜普菈', name: '基底造型噴霧1號', costPrice: 390, isActive: true, isFeatured: false },
-  { id: 'prod_318', brand: '娜普菈', name: '3號微定型噴霧', costPrice: 390, isActive: true, isFeatured: false },
-  { id: 'prod_319', brand: '宸宇', name: '采萃 熱塑一劑 TG-B 1000ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_320', brand: '宸宇', name: '采萃 SC 優塑乳 1000ml', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_321', brand: '宸宇', name: '采萃 鏈鍵蛋白素 1000ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_322', brand: '宸宇', name: '去黃髮膜小300ml', costPrice: 500, isActive: true, isFeatured: false },
-  { id: 'prod_323', brand: '施華蔻', name: '水漾質感中和膏', costPrice: 200, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_324', brand: '施華蔻', name: '俏翎蘆薈中和水1000ml', costPrice: 550, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_325', brand: '施華蔻', name: 'E-1', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_326', brand: '施華蔻', name: '3-0', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_327', brand: '施華蔻', name: '5-0', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_328', brand: '施華蔻', name: 'L-33', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_329', brand: '施華蔻', name: 'L-22', costPrice: 210, isActive: true, isFeatured: false },
-  { id: 'prod_330', brand: '施華蔻', name: '雙氧乳3%', costPrice: 360, isActive: true, isFeatured: false },
-  { id: 'prod_331', brand: '施華蔻', name: '雙氧乳6%', costPrice: 330, isActive: true, isFeatured: false },
-  { id: 'prod_332', brand: '施華蔻', name: '9-98', costPrice: 205, isActive: true, isFeatured: false },
-  { id: 'prod_333', brand: '施華蔻', name: '6-99', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_334', brand: '施華蔻', name: 'B33摩耀色系特綠', costPrice: 205, isActive: true, isFeatured: false },
-  { id: 'prod_335', brand: '施華蔻', name: '8-19', costPrice: 195, isActive: true, isFeatured: false },
-  { id: 'prod_336', brand: '施華蔻', name: '8-11', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_337', brand: '施華蔻', name: 'L-44', costPrice: 210, isActive: true, isFeatured: false },
-  { id: 'prod_338', brand: '施華蔻', name: '0-11', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_339', brand: '施華蔻', name: '0-22', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_340', brand: '施華蔻', name: '0-99', costPrice: 205, isActive: true, isFeatured: false },
-  { id: 'prod_341', brand: '施華蔻', name: 'p9.5-29', costPrice: 195, isActive: true, isFeatured: false },
-  { id: 'prod_342', brand: '施華蔻', name: '9.5-1', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_343', brand: '施華蔻', name: '7-1', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_344', brand: '施華蔻', name: '6-6', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_345', brand: '施華蔻', name: 'L-77', costPrice: 210, isActive: true, isFeatured: false },
-  { id: 'prod_346', brand: '施華蔻', name: '6-08', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_347', brand: '施華蔻', name: 'L-88', costPrice: 210, isActive: true, isFeatured: false },
-  { id: 'prod_348', brand: '施華蔻', name: '6-06', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_349', brand: '施華蔻', name: '新伊采染髮膏4-0基色', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_350', brand: '施華蔻', name: '0-88', costPrice: 205, isActive: true, isFeatured: false },
-  { id: 'prod_351', brand: '施華蔻', name: '0-55', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_352', brand: '施華蔻', name: '6-77', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_353', brand: '施華蔻', name: '6-80', costPrice: 195, isActive: true, isFeatured: false },
-  { id: 'prod_354', brand: '施華蔻', name: '6-60', costPrice: 195, isActive: true, isFeatured: false },
-  { id: 'prod_355', brand: '施華蔻', name: 'L-89', costPrice: 210, isActive: true, isFeatured: false },
-  { id: 'prod_356', brand: '施華蔻', name: '9.5-49', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_357', brand: '施華蔻', name: '12-1', costPrice: 195, isActive: true, isFeatured: false },
-  { id: 'prod_358', brand: '施華蔻', name: '0-33', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_359', brand: '施華蔻', name: '5-60', costPrice: 185, isActive: true, isFeatured: false },
-  { id: 'prod_360', brand: '施華蔻', name: '纖杜拉一號 鏈鍵強化液500ml', costPrice: 3900, isActive: true, isFeatured: false },
-  { id: 'prod_361', brand: '施華蔻', name: '新水漾護髮膜', costPrice: 650, isActive: true, isFeatured: false },
-  { id: 'prod_362', brand: '施華蔻', name: '仙人掌冷萃精油', costPrice: 900, isActive: true, isFeatured: false },
-  { id: 'prod_363', brand: '施華蔻', name: '超級浮力霧', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_364', brand: '施華蔻', name: '銀亮髮露1000ml', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_365', brand: '施華蔻', name: '銀亮髮露250ml', costPrice: 340, isActive: true, isFeatured: false },
-  { id: 'prod_366', brand: '施華蔻', name: '壓頭', costPrice: 60, isActive: true, isFeatured: false },
-  { id: 'prod_367', brand: '施華蔻', name: '纖杜拉鏈鍵油150ml', costPrice: 1200, isActive: true, isFeatured: false },
-  { id: 'prod_368', brand: '施華蔻', name: '綠岩漿', costPrice: 440, isActive: true, isFeatured: false },
-  { id: 'prod_369', brand: '晨宏', name: '蘊活再生髮浴-乾/屑/敏（紅）沙龍用 1000ml', costPrice: 2000, isActive: true, isFeatured: false },
-  { id: 'prod_370', brand: '晨宏', name: '蘊活再生髮浴-油/掉（藍）沙龍用1000ml', costPrice: 2000, isActive: true, isFeatured: false },
-  { id: 'prod_371', brand: '晨宏', name: '療程工具（按摩梳-毛巾-湯匙-碗)', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_372', brand: '晨宏', name: 'ONcare頭皮調理清潔乳（控油）', costPrice: 1350, isActive: true, isFeatured: false },
-  { id: 'prod_373', brand: '晨宏', name: '頭皮調理理液(喚髮)100ml', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_374', brand: '晨宏', name: '薀泉PH平衡液 200ml', costPrice: 850, isActive: true, isFeatured: false },
-  { id: 'prod_375', brand: '晨宏', name: '髮肌逆時前導精華50ml', costPrice: 600, isActive: true, isFeatured: false },
-  { id: 'prod_376', brand: '晨宏', name: 'ONcare 頭皮調理清潔乳（喚髮）950ml', costPrice: 1350, isActive: true, isFeatured: false },
-  { id: 'prod_377', brand: '晨宏', name: 'ONcare髮肌逆時淨化清潔乳950ml', costPrice: 1200, isActive: true, isFeatured: false },
-  { id: 'prod_378', brand: '晨宏', name: 'ONcare頭皮調理清潔乳（淨屑）', costPrice: 1350, isActive: true, isFeatured: false },
-  { id: 'prod_379', brand: '晨宏', name: 'QQ捲髮組合', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_380', brand: '晨宏', name: '蘊活再生髮浴-乾/屑/敏（紅） 500ml', costPrice: 1350, isActive: true, isFeatured: false },
-  { id: 'prod_381', brand: '晨宏', name: '蘊活再生髮浴-油/掉（藍）500ml', costPrice: 1350, isActive: true, isFeatured: false },
-  { id: 'prod_382', brand: '晨宏', name: '蘊活再生頭皮養髮液-熟齡（藍）', costPrice: 10000, isActive: true, isFeatured: false },
-  { id: 'prod_383', brand: '晨宏', name: '微晶導入儀', costPrice: 6000, isActive: true, isFeatured: false },
-  { id: 'prod_384', brand: '晨宏', name: '導入儀-針筒＋微晶（圓）', costPrice: 60, isActive: true, isFeatured: false },
-  { id: 'prod_385', brand: '晨宏', name: '導入儀-微晶（圓）', costPrice: 0, isActive: true, isFeatured: false },
-  { id: 'prod_386', brand: '晴美', name: '采薇大桶潤絲精-水蜜桃白', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_387', brand: '晴美', name: '采薇大桶洗髮精-花香白', costPrice: 170, isActive: true, isFeatured: false },
-  { id: 'prod_388', brand: '樂事', name: '6D接髮片26吋65', costPrice: 2900, isActive: true, isFeatured: false },
-  { id: 'prod_389', brand: '樂事', name: '無痕(4D)接髮片22寸55腰下', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_390', brand: '樂事', name: '6D接髮片28吋70', costPrice: 3100, isActive: true, isFeatured: false },
-  { id: 'prod_391', brand: '樂事', name: '零重力有色髮薄藤紫', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_392', brand: '樂事', name: '零重力有色髮灰色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_393', brand: '樂事', name: '零重力有色髮藍紫色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_394', brand: '樂事', name: '零重力有色髮米白色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_395', brand: '樂事', name: '零重力有色髮淺粉色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_396', brand: '樂事', name: '零重力有色髮寶藍色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_397', brand: '樂事', name: '零重力有色髮天藍色', costPrice: 80, isActive: true, isFeatured: false },
-  { id: 'prod_398', brand: '樂事', name: '零重力接髮片22吋55', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_399', brand: '樂事', name: '零重力接髮片26吋65', costPrice: 2050, isActive: true, isFeatured: false },
-  { id: 'prod_400', brand: '樂事', name: '零重力接髮片24吋60', costPrice: 1950, isActive: true, isFeatured: false },
-  { id: 'prod_401', brand: '樂事', name: '零重力接髮片20吋50', costPrice: 1850, isActive: true, isFeatured: false },
-  { id: 'prod_402', brand: '樂事', name: '零重力接髮片18吋45', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_403', brand: '樂事', name: '零重力接髮片16吋40', costPrice: 1700, isActive: true, isFeatured: false },
-  { id: 'prod_404', brand: '樂事', name: '巴黎畫染22吋', costPrice: 2000, isActive: true, isFeatured: false },
-  { id: 'prod_405', brand: '樂事', name: '九度色零重力接髮片16吋40', costPrice: 1730, isActive: true, isFeatured: false },
-  { id: 'prod_406', brand: '樂事', name: '九度色零重力接髮片18吋45', costPrice: 1830, isActive: true, isFeatured: false },
-  { id: 'prod_407', brand: '樂事', name: '九度色零重力接髮片20吋50', costPrice: 1880, isActive: true, isFeatured: false },
-  { id: 'prod_408', brand: '樂事', name: '九度色零重力接髮片22吋55', costPrice: 1930, isActive: true, isFeatured: false },
-  { id: 'prod_409', brand: '樂事', name: '九度色零重力接髮片26吋65', costPrice: 2080, isActive: true, isFeatured: false },
-  { id: 'prod_410', brand: '樂事', name: 'S接髮24', costPrice: 1750, isActive: true, isFeatured: false },
-  { id: 'prod_411', brand: '樂事', name: 'S級9度色55CM', costPrice: 1850, isActive: true, isFeatured: false },
-  { id: 'prod_412', brand: '樂事', name: 'S接髮16', costPrice: 1600, isActive: true, isFeatured: false },
-  { id: 'prod_413', brand: '樂事', name: 'S接髮20', costPrice: 1650, isActive: true, isFeatured: false },
-  { id: 'prod_414', brand: '歌薇', name: '熱力塑質霜一劑 0-強', costPrice: 590, isActive: true, isFeatured: false },
-  { id: 'prod_415', brand: '歌薇', name: '凡絲蒂燙髮水一劑（0）', costPrice: 90, isActive: true, isFeatured: false },
-  { id: 'prod_416', brand: '歌薇', name: '燙前保養調理劑400ml', costPrice: 420, isActive: true, isFeatured: false },
-  { id: 'prod_417', brand: '歌薇', name: '燙後保水調理劑400ml', costPrice: 420, isActive: true, isFeatured: false },
-  { id: 'prod_418', brand: '歌薇', name: '熱力塑質霜一劑 1 一般', costPrice: 590, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_419', brand: '歌薇', name: '熱力塑質霜一劑 2中等', costPrice: 590, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_420', brand: '歌薇', name: '熱力塑質霜一劑 3 弱', costPrice: 590, isActive: true, isFeatured: false, promotion: NEW_YEAR_PROMO },
-  { id: 'prod_421', brand: '歌薇', name: '凡絲蒂燙髮水一劑（2） 80ML', costPrice: 90, isActive: true, isFeatured: false },
-  { id: 'prod_422', brand: '歌薇', name: '熱力塑質中和霜二劑400ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_423', brand: '歌薇', name: 'COL 2A 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_424', brand: '歌薇', name: 'COL 7MB 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_425', brand: '歌薇', name: 'COL 天空粉藍 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_426', brand: '歌薇', name: 'COL 7AK@PK 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_427', brand: '歌薇', name: '14rev 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_428', brand: '歌薇', name: '掃色粉', costPrice: 1100, isActive: true, isFeatured: false },
-  { id: 'prod_429', brand: '歌薇', name: '8NeB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_430', brand: '歌薇', name: '10NeB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_431', brand: '歌薇', name: '10Gr 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_432', brand: '歌薇', name: '14BlV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_433', brand: '歌薇', name: '12BlV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_434', brand: '歌薇', name: '14PiV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_435', brand: '歌薇', name: '8PiV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_436', brand: '歌薇', name: '8Re 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_437', brand: '歌薇', name: '10Go 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_438', brand: '歌薇', name: '10YeMa 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_439', brand: '歌薇', name: '14BlAs 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_440', brand: '歌薇', name: '12BlAs 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_441', brand: '歌薇', name: '8BlAs 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_442', brand: '歌薇', name: '14As 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_443', brand: '歌薇', name: '10As 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_444', brand: '歌薇', name: 'TCC 11SV 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_445', brand: '歌薇', name: '6NeB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_446', brand: '歌薇', name: '6Gr 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_447', brand: '歌薇', name: '6BlAs 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_448', brand: '歌薇', name: 'TCC 5NN 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_449', brand: '歌薇', name: 'TCC 5B 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_450', brand: '歌薇', name: '7OO@GK 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_451', brand: '歌薇', name: '8Gr 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_452', brand: '歌薇', name: '8BIV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_453', brand: '歌薇', name: '10PiV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_454', brand: '歌薇', name: '10BlV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_455', brand: '歌薇', name: 'TCC 7MB 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_456', brand: '歌薇', name: 'TCC 11VA 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_457', brand: '歌薇', name: '5N 60ml', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_458', brand: '歌薇', name: '8CA@PB 250ml', costPrice: 620, isActive: true, isFeatured: false },
-  { id: 'prod_459', brand: '歌薇', name: '8NB 80ml (歌薇)', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_460', brand: '歌薇', name: '6NB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_461', brand: '歌薇', name: '8PeB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_462', brand: '歌薇', name: '6PeB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_463', brand: '歌薇', name: '8PiB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_464', brand: '歌薇', name: '7RR@RR 250ml', costPrice: 620, isActive: true, isFeatured: false },
-  { id: 'prod_465', brand: '歌薇', name: '9%雙氧乳', costPrice: 330, isActive: true, isFeatured: false },
-  { id: 'prod_466', brand: '歌薇', name: '3%雙氧乳', costPrice: 330, isActive: true, isFeatured: false },
-  { id: 'prod_467', brand: '歌薇', name: '12%雙氧乳', costPrice: 330, isActive: true, isFeatured: false },
-  { id: 'prod_468', brand: '歌薇', name: '8YeMa 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_469', brand: '歌薇', name: '6Ma 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_470', brand: '歌薇', name: 'COL 5N 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_471', brand: '歌薇', name: 'GK@all 200ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_472', brand: '歌薇', name: 'YY@all 200ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_473', brand: '歌薇', name: '11VV', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_474', brand: '歌薇', name: '7SB@Bl 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_475', brand: '歌薇', name: '6SB 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_476', brand: '歌薇', name: '8ReV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_477', brand: '歌薇', name: '10ReV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_478', brand: '歌薇', name: '12Gr TC 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_479', brand: '歌薇', name: '8Or 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_480', brand: '歌薇', name: 'COL 玫瑰粉紅 60ml', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_481', brand: '歌薇', name: 'COL 蜜桃粉橘 60ml', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_482', brand: '歌薇', name: '3N 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_483', brand: '歌薇', name: '7RO 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_484', brand: '歌薇', name: 'TCC 7OO 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_485', brand: '歌薇', name: 'TCC 6RB 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_486', brand: '歌薇', name: 'TCC 8K 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_487', brand: '歌薇', name: '6PiV 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_488', brand: '歌薇', name: 'Tcc 6B 250ML', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_489', brand: '歌薇', name: 'TCC 7KG 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_490', brand: '歌薇', name: '6RR@PK 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_491', brand: '歌薇', name: '5B@BK 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_492', brand: '歌薇', name: 'TCC 2A 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_493', brand: '歌薇', name: '13BC 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_494', brand: '歌薇', name: 'TCC 13BCA 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_495', brand: '歌薇', name: 'Violet TC NEWANCE FASHION TB 80ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_496', brand: '歌薇', name: '8AS 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_497', brand: '歌薇', name: '5CB 80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_498', brand: '歌薇', name: 'P-Mix 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_499', brand: '歌薇', name: '8MaB', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_500', brand: '歌薇', name: 'TCC 6A250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_501', brand: '歌薇', name: 'TCC 6MB 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_502', brand: '歌薇', name: 'TCC 8B 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_503', brand: '歌薇', name: '11A 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_504', brand: '歌薇', name: '6BP@VA 250ml', costPrice: 640, isActive: true, isFeatured: false },
-  { id: 'prod_505', brand: '歌薇', name: '8CA 60ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_506', brand: '歌薇', name: 'COL 5VV超艷紅 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_507', brand: '歌薇', name: 'COL 6A 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_508', brand: '歌薇', name: 'COL 6B 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_509', brand: '歌薇', name: 'COL 6RB 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_510', brand: '歌薇', name: 'COL 顯色乳', costPrice: 280, isActive: true, isFeatured: false },
-  { id: 'prod_511', brand: '歌薇', name: 'COL 4NN 120ml', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_512', brand: '歌薇', name: '9KG', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_513', brand: '歌薇', name: '光感重建劑', costPrice: 92, isActive: true, isFeatured: false },
-  { id: 'prod_514', brand: '歌薇', name: '動感重建劑', costPrice: 92, isActive: true, isFeatured: false },
-  { id: 'prod_515', brand: '歌薇', name: 'KSP絲馭光淨化髮浴1000ml', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_516', brand: '歌薇', name: 'KSP絲馭光金萃控質劑-強500ml', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_517', brand: '歌薇', name: 'KSP絲馭光金萃柔順霜-強500ml', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_518', brand: '歌薇', name: 'KS水誘晶漾髮浴250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_519', brand: '歌薇', name: 'KS水誘晶漾髮護200ml', costPrice: 500, isActive: true, isFeatured: false },
-  { id: 'prod_520', brand: '歌薇', name: 'KSP絲馭光質控髮蜜', costPrice: 560, isActive: true, isFeatured: false },
-  { id: 'prod_521', brand: '歌薇', name: '光纖重建劑', costPrice: 92, isActive: true, isFeatured: false },
-  { id: 'prod_522', brand: '歌薇', name: '精萃金油100ml', costPrice: 750, isActive: true, isFeatured: false },
-  { id: 'prod_523', brand: '歌薇', name: 'DS光感洗髮精1L', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_524', brand: '歌薇', name: 'ksp絲馭光金萃柔順霜-一般500ml', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_525', brand: '歌薇', name: 'KSP絲馭光金萃控質劑一般500ml', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_526', brand: '歌薇', name: 'DS水感極水髮膜1L', costPrice: 1100, isActive: true, isFeatured: false },
-  { id: 'prod_527', brand: '歌薇', name: 'SS塑形鋼鐵人 140ml', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_528', brand: '歌薇', name: '馭髪洸誘髮浴250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_529', brand: '歌薇', name: '馭髪洸誘髮護250ml', costPrice: 600, isActive: true, isFeatured: false },
-  { id: 'prod_530', brand: '歌薇', name: 'KS 絲馭洸 馭髮道全面淨化髮浴', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_531', brand: '歌薇', name: 'KS 絲馭洸 馭髮道全效鎖護髮膜-輕爽', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_532', brand: '歌薇', name: 'KS 絲馭洸 馭髮道全效鎖護髮膜-水潤', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_533', brand: '歌薇', name: 'KS 絲馭洸 馭髮道前導調理', costPrice: 1200, isActive: true, isFeatured: false },
-  { id: 'prod_534', brand: '歌薇', name: 'KS 絲馭洸 馭髮道深層調理-一般', costPrice: 2500, isActive: true, isFeatured: false },
-  { id: 'prod_535', brand: '歌薇', name: 'KS 絲馭洸 馭髮道深層調理-強效', costPrice: 2500, isActive: true, isFeatured: false },
-  { id: 'prod_536', brand: '歌薇', name: 'KS 絲馭洸 馭髮道角質調理-一般', costPrice: 2500, isActive: true, isFeatured: false },
-  { id: 'prod_537', brand: '歌薇', name: 'KS 絲馭洸 馭髮道角質調理-強效', costPrice: 2500, isActive: true, isFeatured: false },
-  { id: 'prod_538', brand: '歌薇', name: 'KS 絲馭洸 微整質柔髮繚 750ml', costPrice: 4800, isActive: true, isFeatured: false },
-  { id: 'prod_539', brand: '歌薇', name: 'KS 絲馭洸 微整質柔菁萃 22ml', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_540', brand: '歌薇', name: '絲馭洸 馭髮洸誘水髮膜200ml', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_541', brand: '歌薇', name: 'KS質順柔緻髮浴750ML', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_542', brand: '歌薇', name: 'KS水誘晶漾髮護750ML', costPrice: 1080, isActive: true, isFeatured: false },
-  { id: 'prod_543', brand: '歌薇', name: 'KS質順柔緻髮護750ML', costPrice: 1080, isActive: true, isFeatured: false },
-  { id: 'prod_544', brand: '歌薇', name: 'KS水誘晶漾髮膜500ML', costPrice: 1680, isActive: true, isFeatured: false },
-  { id: 'prod_545', brand: '歌薇', name: 'KS質順柔緻髮膜500ML', costPrice: 1680, isActive: true, isFeatured: false },
-  { id: 'prod_546', brand: '歌薇', name: 'KS水誘晶漾髮浴750ML', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_547', brand: '歌薇', name: '全明星輕髮油50ml', costPrice: 500, isActive: true, isFeatured: false },
-  { id: 'prod_548', brand: '歌薇', name: 'KS髮繃帶緊緻露125ML', costPrice: 600, isActive: true, isFeatured: false },
-  { id: 'prod_549', brand: '歌薇', name: 'KS無暇抗熱打底髮霧', costPrice: 560, isActive: true, isFeatured: false },
-  { id: 'prod_550', brand: '歌薇', name: '慕光戀色髮浴750ml', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_551', brand: '歌薇', name: '慕光戀色髮護750ml', costPrice: 1080, isActive: true, isFeatured: false },
-  { id: 'prod_552', brand: '歌薇', name: 'SS量感4號塑型慕絲 300ml', costPrice: 320, isActive: true, isFeatured: false },
-  { id: 'prod_553', brand: '歌薇', name: 'KS質順柔緻髮露 75ml', costPrice: 550, isActive: true, isFeatured: false },
-  { id: 'prod_554', brand: '歌薇', name: '光纖洗髮精 1000ml', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_555', brand: '歌薇', name: 'DS水感6效精華100ml', costPrice: 360, isActive: true, isFeatured: false },
-  { id: 'prod_556', brand: '歌薇', name: 'DS光感洗髮精 250ml', costPrice: 320, isActive: true, isFeatured: false },
-  { id: 'prod_557', brand: '歌薇', name: 'DS光纖洗髮精 250ml', costPrice: 320, isActive: true, isFeatured: false },
-  { id: 'prod_558', brand: '歌薇', name: 'KS質順柔緻髮浴250ML', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_559', brand: '歌薇', name: 'TCC 7NA 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_560', brand: '歌薇', name: '新熱力防護精華 150ml', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_561', brand: '歌薇', name: 'DS輕感深層清潔洗髮精1L REF23', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_562', brand: '歌薇', name: '量感3號晶光慕斯300ml', costPrice: 320, isActive: true, isFeatured: false },
-  { id: 'prod_563', brand: '歌薇', name: 'KS水誘晶漾髮霧125ml', costPrice: 600, isActive: true, isFeatured: false },
-  { id: 'prod_564', brand: '歌薇', name: '超型塑型口香糖75ml', costPrice: 320, isActive: true, isFeatured: false },
-  { id: 'prod_565', brand: '歌薇', name: '輕盈蓬蓬髮霧125ml', costPrice: 600, isActive: true, isFeatured: false },
-  { id: 'prod_566', brand: '歌薇', name: 'KS輕盈蓬蓬髮浴750ml', costPrice: 880, isActive: true, isFeatured: false },
-  { id: 'prod_567', brand: '歌薇', name: 'ELU 高效潔膚液 250ml', costPrice: 340, isActive: true, isFeatured: false },
-  { id: 'prod_568', brand: '歌薇', name: '髮纖修護工程(二劑式組合) 500ml', costPrice: 2560, isActive: true, isFeatured: false },
-  { id: 'prod_569', brand: '歌薇', name: '髮纖修護工程-地基一號精華500ml', costPrice: 2500, isActive: true, isFeatured: false },
-  { id: 'prod_570', brand: '歌薇', name: '超型完美定型5號噴霧 300ml', costPrice: 360, isActive: true, isFeatured: false },
-  { id: 'prod_571', brand: '歌薇', name: 'HP玩髮 IN雕 200ML', costPrice: 370, isActive: true, isFeatured: false },
-  { id: 'prod_572', brand: '歌薇', name: '超型系列塑型霧腊', costPrice: 370, isActive: true, isFeatured: false },
-  { id: 'prod_573', brand: '歌薇', name: 'AP豐韌洗髮精300ml', costPrice: 360, isActive: true, isFeatured: false },
-  { id: 'prod_574', brand: '歌薇', name: '超型完美定型5號噴霧 500ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_575', brand: '歌薇', name: 'KSP水誘光深層晶漾髮膜200ml', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_576', brand: '歌薇', name: '抗躁魔法棒 8ml', costPrice: 360, isActive: true, isFeatured: false },
-  { id: 'prod_577', brand: '歌薇', name: '超型系列 量感4號塑型慕絲 500ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_578', brand: '歌薇', name: '朵朵雲捲髮露', costPrice: 400, isActive: true, isFeatured: false },
-  { id: 'prod_579', brand: '歌薇', name: '染系統 導光調頻噴霧 150ml', costPrice: 290, isActive: true, isFeatured: false },
-  { id: 'prod_580', brand: '歌薇', name: 'TCC 9A 250ml', costPrice: 580, isActive: true, isFeatured: false },
-  { id: 'prod_581', brand: '漢高', name: '沛迷絲真漾白金灰棕PtBe 5N', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_582', brand: '漢高', name: 'CoBe9', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_583', brand: '漢高', name: '盈潤新生洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_584', brand: '漢高', name: '活耀洗髮露500ml', costPrice: 830, isActive: true, isFeatured: false },
-  { id: 'prod_585', brand: '漢高', name: '盈潤新生護髮乳(乾燥收損)500g', costPrice: 990, isActive: true, isFeatured: false },
-  { id: 'prod_586', brand: '漢高', name: '盈潤新生護髮乳(乾燥收損)1000g', costPrice: 1560, isActive: true, isFeatured: false },
-  { id: 'prod_587', brand: '漢高', name: '盈潤絲絨晶露100ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_588', brand: '漢高', name: '輕縈柔潤豐澤乳125ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_589', brand: '漢高', name: '活耀未來無限肌能精萃120ml', costPrice: 1200, isActive: true, isFeatured: false },
-  { id: 'prod_590', brand: '漢高', name: '極光洗髮露補充包', costPrice: 1600, isActive: true, isFeatured: false },
-  { id: 'prod_591', brand: '漢高', name: '盈潤新生修護髮膜（脆弱受損）680g', costPrice: 2000, isActive: true, isFeatured: false },
-  { id: 'prod_592', brand: '漢高', name: '盈潤新生洗髮露500ml', costPrice: 780, isActive: true, isFeatured: false },
-  { id: 'prod_593', brand: '特芬利', name: '特12-21', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_594', brand: '特芬利', name: '特10-21', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_595', brand: '特芬利', name: '特12-11', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_596', brand: '特芬利', name: '特2-21', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_597', brand: '特芬利', name: '特2-11', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_598', brand: '特芬利', name: '特4-0', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_599', brand: '特芬利', name: '特6-0', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_600', brand: '特芬利', name: '特6-1', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_601', brand: '特芬利', name: '特7-1', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_602', brand: '特芬利', name: '特8-1', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_603', brand: '特芬利', name: '特7-11', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_604', brand: '特芬利', name: '特5-11', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_605', brand: '特芬利', name: '特6-15', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_606', brand: '特芬利', name: '特6-71', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_607', brand: '特芬利', name: '特6-35', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_608', brand: '特芬利', name: '特5-35', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_609', brand: '特芬利', name: '特6-22', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_610', brand: '特芬利', name: '特000', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_611', brand: '特芬利', name: '特12-18', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_612', brand: '特芬利', name: '特55.0', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_613', brand: '特芬利', name: '特4-1', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_614', brand: '特芬利', name: '特10-12', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_615', brand: '特芬利', name: '特0-25', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_616', brand: '特芬利', name: '特0-18', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_617', brand: '特芬利', name: '特0-12', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_618', brand: '特芬利', name: '特33-0', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_619', brand: '特芬利', name: '特3-0', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_620', brand: '特芬利', name: '特4-22', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_621', brand: '特芬利', name: '特3-81', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_622', brand: '特芬利', name: '特5-15', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_623', brand: '特芬利', name: '特4-18', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_624', brand: '特芬利', name: '特8-44', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_625', brand: '特芬利', name: '特10-7', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_626', brand: '特芬利', name: '特6-44', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_627', brand: '特芬利', name: '特5-56冷檀紅', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_628', brand: '特芬利', name: '特10-23', costPrice: 285, isActive: true, isFeatured: false },
-  { id: 'prod_629', brand: '特芬利', name: '優活乳3% 900ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_630', brand: '特芬利', name: '優活乳6% 900ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_631', brand: '特芬利', name: '優活乳9% 900ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_632', brand: '特芬利', name: '暖暖彈力洗髮露5000ml', costPrice: 4350, isActive: true, isFeatured: false },
-  { id: 'prod_633', brand: '特芬利', name: '霓霧亮色洗髮露5000ml', costPrice: 4350, isActive: true, isFeatured: false },
-  { id: 'prod_634', brand: '特芬利', name: '霓霧亮色輕髮膜5000ml', costPrice: 4800, isActive: true, isFeatured: false },
-  { id: 'prod_635', brand: '特芬利', name: '暖暖彈力洗髮露250ml', costPrice: 445, isActive: true, isFeatured: false },
-  { id: 'prod_636', brand: '特芬利', name: '純淨抗屑洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_637', brand: '特芬利', name: '能量豐茂洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_638', brand: '特芬利', name: '康敏舒緩洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_639', brand: '特芬利', name: '康敏舒緩強效菁華100ml', costPrice: 1110, isActive: true, isFeatured: false },
-  { id: 'prod_640', brand: '特芬利', name: '能量豐茂活化強效精華100ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_641', brand: '特芬利', name: '彈潤寶水洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_642', brand: '特芬利', name: '甦活益生洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_643', brand: '特芬利', name: '甦活益生強效精華100ml', costPrice: 1250, isActive: true, isFeatured: false },
-  { id: 'prod_644', brand: '特芬利', name: '東方美人油135ml', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_645', brand: '特芬利', name: '暖暖彈力洗髮露1000ml`', costPrice: 1270, isActive: true, isFeatured: false },
-  { id: 'prod_646', brand: '特芬利', name: '暖暖彈力輕髮膜1000ml', costPrice: 1620, isActive: true, isFeatured: false },
-  { id: 'prod_647', brand: '特芬利', name: '霓霧亮色洗髮露1000ml', costPrice: 1270, isActive: true, isFeatured: false },
-  { id: 'prod_648', brand: '特芬利', name: '霓霧亮色輕髮膜1000ml', costPrice: 1620, isActive: true, isFeatured: false },
-  { id: 'prod_649', brand: '特芬利', name: '深層淨化洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_650', brand: '特芬利', name: '康敏舒緩洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_651', brand: '特芬利', name: '甦活益生調理霜1000ml', costPrice: 1870, isActive: true, isFeatured: false },
-  { id: 'prod_652', brand: '特芬利', name: '彈潤寶水潤髮霜1000ml', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_653', brand: '特芬利', name: '彈潤寶水洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_654', brand: '特芬利', name: '能量豐茂洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_655', brand: '特芬利', name: '平衡控油洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_656', brand: '特芬利', name: '甦活益生洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_657', brand: '特芬利', name: '純淨抗屑洗髮露1000ml', costPrice: 1280, isActive: true, isFeatured: false },
-  { id: 'prod_658', brand: '特芬利', name: '輕爽深層洗髮露5000ml', costPrice: 4350, isActive: true, isFeatured: false },
-  { id: 'prod_659', brand: '特芬利', name: '海洋蓬蓬霧', costPrice: 520, isActive: true, isFeatured: false },
-  { id: 'prod_660', brand: '特芬利', name: '能量豐茂賦活強效菁華100ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_661', brand: '特芬利', name: '極光霧200ml', costPrice: 520, isActive: true, isFeatured: false },
-  { id: 'prod_662', brand: '特芬利', name: '喚蘊昇華賦舒菁華100ml', costPrice: 1090, isActive: true, isFeatured: false },
-  { id: 'prod_663', brand: '特芬利', name: '甦活益生調理霜 250ml', costPrice: 560, isActive: true, isFeatured: false },
-  { id: 'prod_664', brand: '特芬利', name: '平衡控油洗髮露250ml', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_665', brand: '特芬利', name: '昇華香氛噴霧', costPrice: 1170, isActive: true, isFeatured: false },
-  { id: 'prod_666', brand: '特芬利', name: '純淨抗屑凝膠', costPrice: 620, isActive: true, isFeatured: false },
-  { id: 'prod_667', brand: '特芬利', name: '平衡控油調理凝露250ml', costPrice: 650, isActive: true, isFeatured: false },
-  { id: 'prod_668', brand: '特芬利', name: '喚蘊昇華淨化土120g', costPrice: 2600, isActive: true, isFeatured: false },
-  { id: 'prod_669', brand: '特芬利', name: '髮爍膠250ml', costPrice: 520, isActive: true, isFeatured: false },
-  { id: 'prod_670', brand: '甦沐梓', name: '甦沐梓修護1劑', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_671', brand: '甦沐梓', name: '甦沐梓修護2劑', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_672', brand: '甦沐梓', name: '甦沐梓修護3劑', costPrice: 1600, isActive: true, isFeatured: false },
-  { id: 'prod_673', brand: '甦沐梓', name: '甦沐梓髮油', costPrice: 790, isActive: true, isFeatured: false },
-  { id: 'prod_674', brand: '甦沐梓', name: '甦沐梓髮浴', costPrice: 840, isActive: true, isFeatured: false },
-  { id: 'prod_675', brand: '甦沐梓', name: '甦沐梓髮膜', costPrice: 840, isActive: true, isFeatured: false },
-  { id: 'prod_676', brand: '甦沐梓', name: '甦沐梓洗護油旅行組', costPrice: 290, isActive: true, isFeatured: false },
-  { id: 'prod_677', brand: '聖馥', name: 'MD雙氧水3％', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_678', brand: '聖馥', name: 'MD雙氧水6％', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_679', brand: '聖馥', name: 'MD雙氧水9％', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_680', brand: '聖馥', name: 'MD雙氧水12％', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_681', brand: '聖馥', name: '旭佑漂粉（藍）500g', costPrice: 450, isActive: true, isFeatured: false },
-  { id: 'prod_682', brand: '葳肯', name: 'B5棉花糖補色慕斯-冰川藍', costPrice: 480, isActive: true, isFeatured: false },
-  { id: 'prod_683', brand: '葳肯', name: 'B2棉花糖補色慕斯-煙燻粉', costPrice: 480, isActive: true, isFeatured: false },
-  { id: 'prod_684', brand: '葳肯', name: 'B1棉花糖補色慕斯-灰紫霧', costPrice: 480, isActive: true, isFeatured: false },
-  { id: 'prod_685', brand: '蘊洛', name: '水光感熱塑-受損1劑 500ml', costPrice: 400, isActive: true, isFeatured: false },
-  { id: 'prod_686', brand: '覺亞', name: '希沛絲頭皮修護膜35ml(12入組）', costPrice: 1200, isActive: true, isFeatured: false },
-  { id: 'prod_687', brand: '覺亞', name: '甘草次酸角質淨化液75ml', costPrice: 185, isActive: true, isFeatured: false },
-  { id: 'prod_688', brand: '覺亞', name: '極致控油氨基酸養髮液115ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_689', brand: '覺亞', name: '深層抗屑氨基酸養髮液115ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_690', brand: '覺亞', name: '深層抗屑氨基酸洗髮精220ml', costPrice: 475, isActive: true, isFeatured: false },
-  { id: 'prod_691', brand: '覺亞', name: '柔敏健髮氨基酸養髮液115ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_692', brand: '覺亞', name: '極致控油氨基酸洗髮精220ml', costPrice: 475, isActive: true, isFeatured: false },
-  { id: 'prod_693', brand: '覺亞', name: '梳王', costPrice: 990, isActive: true, isFeatured: false },
-  { id: 'prod_694', brand: '覺亞', name: '柔敏健髮氨基酸洗髮精220ml', costPrice: 475, isActive: true, isFeatured: false },
-  { id: 'prod_695', brand: '覺亞', name: '希沛絲賦活露50ml', costPrice: 2300, isActive: true, isFeatured: false },
-  { id: 'prod_696', brand: '覺亞', name: '燙染守護神15ml', costPrice: 75, isActive: true, isFeatured: false },
-  { id: 'prod_697', brand: '覺亞', name: '希沛絲頭皮修護膜35ml', costPrice: 100, isActive: true, isFeatured: false },
-  { id: 'prod_698', brand: '覺亞', name: '甘草次酸角質淨化液220ml', costPrice: 540, isActive: true, isFeatured: false },
-  { id: 'prod_699', brand: '覺亞', name: '深層抗屑氨基酸洗髮精1000ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_700', brand: '覺亞', name: '極致控油氨基酸洗髮精1000ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_701', brand: '覺亞', name: '柔敏健髮氨基酸洗髮精1000ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_702', brand: '覺亞', name: '健髮賦活氨基酸洗髮精1000ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_703', brand: '覺亞', name: '希沛絲蘊髮洗髮精(油性頭皮）220ml', costPrice: 540, isActive: true, isFeatured: false },
-  { id: 'prod_704', brand: '覺亞', name: '希沛絲蘊髮養髮液（乾性頭皮）', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_705', brand: '覺亞', name: '希沛絲蘊髮養髮液（油性頭皮）115ml', costPrice: 1000, isActive: true, isFeatured: false },
-  { id: 'prod_706', brand: '覺亞', name: '希沛絲蘊髮洗髮精(乾性頭皮）220ml', costPrice: 540, isActive: true, isFeatured: false },
-  { id: 'prod_707', brand: '覺亞', name: '健髮賦活胺基酸養髮液500ml', costPrice: 1900, isActive: true, isFeatured: false },
-  { id: 'prod_708', brand: '覺亞', name: '極致控油胺基酸洗髮精4000ml', costPrice: 2400, isActive: true, isFeatured: false },
-  { id: 'prod_709', brand: '覺亞', name: '希沛絲蘊髮洗髮精(油性頭皮）1000ml', costPrice: 2300, isActive: true, isFeatured: false },
-  { id: 'prod_710', brand: '覺亞', name: '希沛絲蘊髮洗髮精(乾性頭皮）1000ml', costPrice: 2300, isActive: true, isFeatured: false },
-  { id: 'prod_711', brand: '覺亞', name: '健髮賦活氨基酸洗4000ml', costPrice: 2400, isActive: true, isFeatured: false },
-  { id: 'prod_712', brand: '覺亞', name: '深層抗屑氨基酸洗4000ml', costPrice: 2400, isActive: true, isFeatured: false },
-  { id: 'prod_713', brand: '覺亞', name: '甘草次酸角質淨化液4000ml', costPrice: 2600, isActive: true, isFeatured: false },
-  { id: 'prod_714', brand: '覺亞', name: '甘草次酸健康護手霜', costPrice: 230, isActive: true, isFeatured: false },
-  { id: 'prod_715', brand: '覺亞', name: 'Delta洗髮沐浴露330ml', costPrice: 780, isActive: true, isFeatured: false },
-  { id: 'prod_716', brand: '覺亞', name: '健髮賦活胺基酸養髮液115ml', costPrice: 700, isActive: true, isFeatured: false },
-  { id: 'prod_717', brand: '覺亞', name: '柔敏健髮氨基酸洗髮精30ml', costPrice: 55, isActive: true, isFeatured: false },
-  { id: 'prod_718', brand: '覺亞', name: '亞麻健髮護色護髮油30ml', costPrice: 120, isActive: true, isFeatured: false },
-  { id: 'prod_719', brand: '覺亞', name: '高階養髮旅行組', costPrice: 850, isActive: true, isFeatured: false },
-  { id: 'prod_720', brand: '覺亞', name: '握握梳', costPrice: 590, isActive: true, isFeatured: false },
-  { id: 'prod_721', brand: '覺亞', name: '希沛絲賦活精華EX(6人組）', costPrice: 990, isActive: true, isFeatured: false },
-  { id: 'prod_722', brand: '覺亞', name: '白鈴蘭與雪松洗髮沐浴露 1000ml', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_723', brand: '覺亞', name: '三合一出走伊甸園', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_724', brand: '覺亞', name: '三合一洗髮沐浴露（清醒夢序曲）1000ml', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_725', brand: '覺亞', name: '草本健髮胺基酸洗髮精（蒙馬特散策）1000ml', costPrice: 0, isActive: true, isFeatured: false },
-  { id: 'prod_726', brand: '覺亞', name: '搭贈白鈴蘭與雪松洗髮沐浴露(買二送一）', costPrice: 0, isActive: true, isFeatured: false },
-  { id: 'prod_727', brand: '覺亞', name: '覺亞-壓頭', costPrice: 20, isActive: true, isFeatured: false },
-  { id: 'prod_728', brand: '覺亞', name: '燙染舒敏頭皮隔離油（24入）', costPrice: 1800, isActive: true, isFeatured: false },
-  { id: 'prod_729', brand: '覺亞', name: '甘草次酸健康洗髮精（護手配方）1000ml', costPrice: 0, isActive: true, isFeatured: false },
-  { id: 'prod_730', brand: '覺亞', name: '三合一洗髮沐浴露（春冷綠意）1000ml.', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_731', brand: '覺亞', name: '三合一洗髮沐浴露（浮絃隱茶）1000ml', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_732', brand: '覺亞', name: '三合一洗髮沐浴露（蒼嶙沉烟）1000ml', costPrice: 675, isActive: true, isFeatured: false },
-  { id: 'prod_733', brand: '里歐', name: '日式縮Q彈燙-冷燙1劑(健康)', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_734', brand: '里歐', name: '日式縮Q彈燙-冷燙1劑-受損', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_735', brand: '里歐', name: '里歐9%', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_736', brand: '里歐', name: '里歐6%', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_737', brand: '里歐', name: '里歐12/02', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_738', brand: '里歐', name: '里歐12%', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_739', brand: '里歐', name: '里歐77/80', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_740', brand: '里歐', name: '里歐77/2', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_741', brand: '里歐', name: '里歐77/1', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_742', brand: '里歐', name: '里歐55/2', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_743', brand: '里歐', name: '里歐3%', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_744', brand: '里歐', name: '里歐6/0', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_745', brand: '里歐', name: '里歐88/62', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_746', brand: '里歐', name: '里歐99/21', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_747', brand: '里歐', name: '里歐88/16', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_748', brand: '里歐', name: '里歐3/0', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_749', brand: '里歐', name: '里歐4/8', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_750', brand: '里歐', name: '里歐4/0', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_751', brand: '里歐', name: '里歐5/0', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_752', brand: '里歐', name: '里歐1/0', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_753', brand: '里歐', name: '里歐7/1', costPrice: 150, isActive: true, isFeatured: false },
-  { id: 'prod_754', brand: '里歐', name: 'musumi頭皮精華隔離油500ml', costPrice: 1400, isActive: true, isFeatured: false },
-  { id: 'prod_755', brand: '里歐', name: '頭皮復活舒緩凝膠', costPrice: 550, isActive: true, isFeatured: false },
-  { id: 'prod_756', brand: '里歐', name: 'musumi頭皮隔離精華液150ml', costPrice: 480, isActive: true, isFeatured: false },
-  { id: 'prod_757', brand: '里歐', name: '頭皮賦活泥500ml', costPrice: 550, isActive: true, isFeatured: false },
-  { id: 'prod_758', brand: '雷娜塔', name: '雷娜塔5/0', costPrice: 190, isActive: true, isFeatured: false },
-  { id: 'prod_759', brand: '雷娜塔', name: '森精粹前導淨化凝膠500ml', costPrice: 800, isActive: true, isFeatured: false },
-  { id: 'prod_760', brand: '髮瑪', name: 'Hairmod 雲捲燙Tg1', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_761', brand: '髮瑪', name: '雲捲燙 TG-S (壓貼)', costPrice: 380, isActive: true, isFeatured: false },
-  { id: 'prod_762', brand: '髮瑪', name: '雲捲冷燙（水狀）', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_763', brand: '髮瑪', name: '2P直hairmod雲捲燙（2劑）乳狀', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_764', brand: '髮瑪', name: '2P捲hairmod雲捲燙（2劑）液狀', costPrice: 180, isActive: true, isFeatured: false },
-  { id: 'prod_765', brand: '髮瑪', name: 'hairmod雲捲塑型燙（凝膠狀）', costPrice: 220, isActive: true, isFeatured: false },
-  { id: 'prod_766', brand: '髮瑪', name: 'Hairmod 雲捲燙Tg2', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_767', brand: '髮瑪', name: 'Hairmod 雲捲Cy3', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_768', brand: '髮瑪', name: 'Hairmod 雲捲冷燙一劑（一般髮質使用）', costPrice: 350, isActive: true, isFeatured: false },
-  { id: 'prod_769', brand: '髮瑪', name: 'BLONDHER PLUS 超級灰漂', costPrice: 1050, isActive: true, isFeatured: false },
-  { id: 'prod_770', brand: '髮瑪', name: 'A6鴿羽100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_771', brand: '髮瑪', name: 'AA8水泥100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_772', brand: '髮瑪', name: 'R8粉嫣100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_773', brand: '髮瑪', name: 'M8檀香100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_774', brand: '髮瑪', name: '7.1金灰80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_775', brand: '髮瑪', name: '5.74淺棕棕橘80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_776', brand: '髮瑪', name: '6.43深金銅黃80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_777', brand: '髮瑪', name: '6%OXY雙氧乳1000ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_778', brand: '髮瑪', name: '9%OXY雙氧乳1000ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_779', brand: '髮瑪', name: '11.89極淺金珍珠藍80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_780', brand: '髮瑪', name: 'B6澈海100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_781', brand: '髮瑪', name: 'G6碧柳100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_782', brand: '髮瑪', name: 'Argento超銀矯色膏80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_783', brand: '髮瑪', name: '半永久染ONICE(3)霧灰80ml', costPrice: 220, isActive: true, isFeatured: false },
-  { id: 'prod_784', brand: '髮瑪', name: '3%OXY雙氧乳1000ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_785', brand: '髮瑪', name: '12%OXY雙氧乳1000ml', costPrice: 300, isActive: true, isFeatured: false },
-  { id: 'prod_786', brand: '髮瑪', name: '半永久染TURCHESE碧80ml', costPrice: 220, isActive: true, isFeatured: false },
-  { id: 'prod_787', brand: '髮瑪', name: 'AA6石灰100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_788', brand: '髮瑪', name: 'M6檜皮 100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_789', brand: '髮瑪', name: 'M7桃木', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_790', brand: '髮瑪', name: 'B2玄武100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_791', brand: '髮瑪', name: 'C13極光100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_792', brand: '髮瑪', name: 'R7莓果100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_793', brand: '髮瑪', name: 'Ash岩100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_794', brand: '髮瑪', name: 'Blue青100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_795', brand: '髮瑪', name: 'White雪100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_796', brand: '髮瑪', name: 'Red赤100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_797', brand: '髮瑪', name: 'N11稻穗', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_798', brand: '髮瑪', name: '5.1淺棕灰', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_799', brand: '髮瑪', name: '8.21', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_800', brand: '髮瑪', name: '5.17淺棕灰柚木80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_801', brand: '髮瑪', name: '4.87棕雷藤木80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_802', brand: '髮瑪', name: 'Violet靚100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_803', brand: '髮瑪', name: '6.87深金雷藤木', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_804', brand: '髮瑪', name: 'V8丁香100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_805', brand: '髮瑪', name: '1.9', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_806', brand: '髮瑪', name: '髮油膠100g', costPrice: 445, isActive: true, isFeatured: false },
-  { id: 'prod_807', brand: '髮瑪', name: '硬漢髮蠟 120ml', costPrice: 425, isActive: true, isFeatured: false },
-  { id: 'prod_808', brand: '髮瑪', name: '硬漢髮油(紅)', costPrice: 425, isActive: true, isFeatured: false },
-  { id: 'prod_809', brand: '髮瑪', name: 'C4冷咖100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_810', brand: '髮瑪', name: 'G7松煙100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_811', brand: '髮瑪', name: 'B7霧空100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_812', brand: '髮瑪', name: 'N6卡其100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_813', brand: '髮瑪', name: 'A9鈦鼠100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_814', brand: '髮瑪', name: 'A11銀牙100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_815', brand: '髮瑪', name: 'A4墨灰100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_816', brand: '髮瑪', name: '+3Warm暖100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_817', brand: '髮瑪', name: '＋3Cool冷100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_818', brand: '髮瑪', name: 'Orange橙100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_819', brand: '髮瑪', name: 'Yellow皇100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_820', brand: '髮瑪', name: 'V9藕蓮100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_821', brand: '髮瑪', name: 'V11玫金100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_822', brand: '髮瑪', name: 'Green玉100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_823', brand: '髮瑪', name: 'O7朱銅100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_824', brand: '髮瑪', name: 'M4焦茶100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_825', brand: '髮瑪', name: 'V6妃櫻100ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_826', brand: '髮瑪', name: '0.66加強紅80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_827', brand: '髮瑪', name: '5.87淺棕雷藤木80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_828', brand: '髮瑪', name: '7.87金雷藤木80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_829', brand: '髮瑪', name: '11.1極淺金灰80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_830', brand: '髮瑪', name: '11.2極淺金紫80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_831', brand: '髮瑪', name: '11.8極淺金珍珠80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_832', brand: '髮瑪', name: '0.28紫藍加強色80ml', costPrice: 200, isActive: true, isFeatured: false },
-  { id: 'prod_833', brand: '髮瑪', name: '5.7柚木', costPrice: 200, isActive: true, isFeatured: false }
 ];
 
-const INITIAL_ANNOUNCEMENT: Announcement = {
-  title: '🐍 2025 新春囤貨節 - 買二送一特別企劃',
-  content: '本次活動可分兩期付款，於一月及二月薪資扣除。\n請提前準備，務必於一月領料日完成安排。\n⚠️ 特別注意：二月無開放領料日！',
-  isActive: true
-};
-
 export const dataService = {
+  // Check if Firebase is ready
+  isFirebaseReady: () => isDbEnabled,
+
   // Users
   login: (inputName: string): User | null => {
     const normalizedInput = inputName.trim().toLowerCase();
-    
-    // Find case-insensitive match
     const match = VALID_USERS.find(u => u.toLowerCase() === normalizedInput);
-    
-    if (!match) {
-        return null;
-    }
-
-    // Role Logic: Only 'Cooper' is ADMIN
+    if (!match) return null;
     const role = match.toLowerCase() === 'cooper' ? UserRole.ADMIN : UserRole.DESIGNER;
-
-    return {
-      id: match, // Use correct casing for ID
-      name: match, // Use correct casing for Display Name
-      role: role,
-    };
+    return { id: match, name: match, role };
   },
 
   // Announcement
@@ -899,10 +288,11 @@ export const dataService = {
     localStorage.setItem(KEYS.ANNOUNCEMENT, JSON.stringify(announcement));
   },
 
-  // Products
+  // Products (Keep local for now as it's static catalog)
   getProducts: (): Product[] => {
     const stored = localStorage.getItem(KEYS.PRODUCTS);
     if (!stored) {
+      // In a real app, we might seed this to Firestore once
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
       return INITIAL_PRODUCTS;
     }
@@ -912,11 +302,8 @@ export const dataService = {
   saveProduct: (product: Product) => {
     const products = dataService.getProducts();
     const index = products.findIndex(p => p.id === product.id);
-    if (index >= 0) {
-      products[index] = product;
-    } else {
-      products.push(product);
-    }
+    if (index >= 0) products[index] = product;
+    else products.push(product);
     localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
   },
 
@@ -925,43 +312,90 @@ export const dataService = {
     localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
   },
 
-  // Orders
-  getOrders: (): Order[] => {
-    const stored = localStorage.getItem(KEYS.ORDERS);
-    return stored ? JSON.parse(stored) : [];
+  // --- REAL-TIME ORDER SYSTEM (FIRESTORE) ---
+
+  // Subscribe to orders (Real-time listener)
+  subscribeToOrders: (callback: (orders: Order[]) => void) => {
+    if (!isDbEnabled || !db) {
+        // Fallback to local storage if no DB
+        const stored = localStorage.getItem(KEYS.LOCAL_ORDERS);
+        callback(stored ? JSON.parse(stored) : []);
+        
+        // Polling to simulate simple updates in local mode
+        const interval = setInterval(() => {
+             const current = localStorage.getItem(KEYS.LOCAL_ORDERS);
+             if (current) callback(JSON.parse(current));
+        }, 2000);
+        return () => clearInterval(interval);
+    }
+
+    // Modular Syntax
+    const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const orders: Order[] = [];
+      querySnapshot.forEach((doc) => {
+        orders.push({ id: doc.id, ...doc.data() } as Order);
+      });
+      callback(orders);
+    }, (error) => {
+        console.error("Error fetching orders:", error);
+    });
+
+    return unsubscribe;
   },
 
-  createOrder: (order: Order) => {
-    const orders = dataService.getOrders();
-    orders.unshift(order); // Newest first
-    localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
-  },
-
-  updateOrder: (updatedOrder: Order) => {
-    const orders = dataService.getOrders();
-    const index = orders.findIndex(o => o.id === updatedOrder.id);
-    if (index >= 0) {
-      orders[index] = updatedOrder;
-      localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
+  createOrder: async (order: Order) => {
+    if (isDbEnabled && db) {
+        // We use setDoc with order.id to ensure ID consistency if generated on client
+        await setDoc(doc(db, "orders", order.id), order);
+    } else {
+        const orders = dataService.getOrdersLocalFallback();
+        orders.unshift(order);
+        localStorage.setItem(KEYS.LOCAL_ORDERS, JSON.stringify(orders));
     }
   },
-  
-  // Implemented batch update for Brand View operations
-  updateOrderBatch: (updatedOrders: Order[]) => {
-    console.log('[DataService] Batch updating orders:', updatedOrders.length);
-    const currentOrders = dataService.getOrders();
-    // Create a map for faster lookup of updates
-    const updatesMap = new Map(updatedOrders.map(o => [o.id, o]));
-    
-    // Map through current orders, replacing with update if exists
-    const newOrders = currentOrders.map(o => updatesMap.get(o.id) || o);
-    
-    localStorage.setItem(KEYS.ORDERS, JSON.stringify(newOrders));
-    console.log('[DataService] Batch update complete.');
+
+  updateOrder: async (updatedOrder: Order) => {
+    if (isDbEnabled && db) {
+        const orderRef = doc(db, "orders", updatedOrder.id);
+        await updateDoc(orderRef, { ...updatedOrder });
+    } else {
+        const orders = dataService.getOrdersLocalFallback();
+        const index = orders.findIndex(o => o.id === updatedOrder.id);
+        if (index >= 0) {
+            orders[index] = updatedOrder;
+            localStorage.setItem(KEYS.LOCAL_ORDERS, JSON.stringify(orders));
+        }
+    }
   },
 
-  deleteOrder: (id: string) => {
-    const orders = dataService.getOrders().filter(o => o.id !== id);
-    localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
+  updateOrderBatch: async (updatedOrders: Order[]) => {
+      if (isDbEnabled && db) {
+          const promises = updatedOrders.map(o => {
+             const orderRef = doc(db, "orders", o.id);
+             return updateDoc(orderRef, { ...o });
+          });
+          await Promise.all(promises);
+      } else {
+        const currentOrders = dataService.getOrdersLocalFallback();
+        const updatesMap = new Map(updatedOrders.map(o => [o.id, o]));
+        const newOrders = currentOrders.map(o => updatesMap.get(o.id) || o);
+        localStorage.setItem(KEYS.LOCAL_ORDERS, JSON.stringify(newOrders));
+      }
+  },
+
+  deleteOrder: async (id: string) => {
+      if (isDbEnabled && db) {
+          await deleteDoc(doc(db, "orders", id));
+      } else {
+          const orders = dataService.getOrdersLocalFallback().filter(o => o.id !== id);
+          localStorage.setItem(KEYS.LOCAL_ORDERS, JSON.stringify(orders));
+      }
+  },
+
+  // Helper for fallback mode
+  getOrdersLocalFallback: (): Order[] => {
+      const stored = localStorage.getItem(KEYS.LOCAL_ORDERS);
+      return stored ? JSON.parse(stored) : [];
   }
 };

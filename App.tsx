@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingBag, 
@@ -25,7 +24,10 @@ import {
   List,
   BarChart2,
   Download,
-  Clock
+  Clock,
+  Cloud,
+  CloudOff,
+  Loader2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -34,10 +36,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 import { dataService } from './services/dataService';
 import { User, Product, PricingMode, CartItem, Order, OrderStatus, UserRole, Announcement, Promotion } from './types';
@@ -51,8 +50,6 @@ const calculatePrice = (cost: number, mode: PricingMode): number => {
 
 const formatDate = (ts: number) => new Date(ts).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-// Recalculates total excluding Out of Stock items
-// Note: Total is based on PAID Quantity. Free items are bonus and do not affect cost.
 const recalculateOrderTotal = (items: Order['items']): number => {
     return items.reduce((sum, item) => {
         if (item.status === OrderStatus.OUT_OF_STOCK) return sum;
@@ -77,7 +74,6 @@ const getStatusBadge = (status: OrderStatus) => {
 
 // --- Sub-Components ---
 
-// 0. Announcement Modal
 interface AnnouncementModalProps {
   announcement: Announcement;
   onClose: () => void;
@@ -122,31 +118,24 @@ const ProductCard: React.FC<ProductCardProps> = ({
   cartQty,
   onUpdateCart 
 }) => {
-  // Promotion Logic
   const isBundle = product.promotion?.type === 'BUNDLE';
-  
-  // Pricing Basis: For BUNDLE, use Original Cost Price. For others, use Discounted Mode Price.
   const baseUnitPrice = isBundle ? product.costPrice : calculatePrice(product.costPrice, mode);
   
-  // Bundle Calculations
   const bundlePaidQty = isBundle ? product.promotion!.buy : 0;
   const bundleFreeQty = isBundle ? product.promotion!.get : 0;
   const bundleTotalQty = bundlePaidQty + bundleFreeQty;
   const bundlePrice = isBundle ? baseUnitPrice * bundlePaidQty : 0;
 
-  // Display Logic
   let displayPrice = baseUnitPrice;
   if (isBundle) {
       displayPrice = bundlePrice;
   }
   
-  // Custom Style for Featured items (Removed red border as requested)
   const borderClass = 'border border-transparent hover:border-ink-light/20';
 
   return (
     <div className={`group relative flex flex-col justify-between bg-white transition-all duration-300 ${borderClass} ${isBundle ? 'bg-red-50/10' : ''} p-4 h-full min-h-[160px]`}>
         
-        {/* Promotion Badges */}
         {isBundle && (
            <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] px-2 py-1 font-bold z-10 shadow-sm flex items-center gap-1 rounded-sm">
              <Zap size={10} fill="currentColor" /> 🧨 新春優惠組
@@ -159,7 +148,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 {product.name}
             </h3>
             
-            {/* Bundle Info */}
             <div className="text-xs text-ink-light mb-3">
                 {isBundle && (
                     <span className="text-ink font-bold bg-amber-100 px-2 py-0.5 rounded text-[10px] inline-block mb-1">
@@ -184,7 +172,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                </span>
            </div>
 
-           {/* Interaction Area */}
             <div className="flex items-end justify-end">
                 {cartQty === 0 ? (
                     <button 
@@ -216,7 +203,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
   );
 };
 
-// 1. Shop View
 interface ShopViewProps {
   products: Product[];
   pricingMode: PricingMode;
@@ -229,29 +215,19 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
     const [filterBrand, setFilterBrand] = useState<string>('');
     const brands: string[] = Array.from(new Set((products || []).map(p => p.brand)));
     
-    // Updated Sorting Logic:
-    // 1. Bundles (New Year Promo) First
-    // 2. Featured items Second
-    // 3. Normal items Last
     const visibleProducts: Product[] = (products || [])
       .filter(p => p.isActive)
       .filter(p => !filterBrand || p.brand === filterBrand)
       .sort((a, b) => {
-          // Priority 1: New Year Bundles
           const aIsBundle = a.promotion?.type === 'BUNDLE' ? 1 : 0;
           const bIsBundle = b.promotion?.type === 'BUNDLE' ? 1 : 0;
           
-          if (aIsBundle !== bIsBundle) {
-              return bIsBundle - aIsBundle;
-          }
-          
-          // Priority 2: Featured
+          if (aIsBundle !== bIsBundle) return bIsBundle - aIsBundle;
           return Number(b.isFeatured) - Number(a.isFeatured);
       });
 
     return (
       <div className="pb-24">
-        {/* Sticky Header */}
         <div className="sticky top-0 z-20 bg-paper/95 backdrop-blur-md border-b border-ink-light/10 shadow-sm">
           <div className="px-4 py-3 flex justify-between items-center">
              <h2 className="font-serif text-xl font-bold tracking-widest">CATALOG</h2>
@@ -265,7 +241,6 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
              </div>
           </div>
           
-          {/* Brand Filter */}
           <div className="px-4 pb-3">
             <div className="relative">
                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
@@ -283,7 +258,6 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
           </div>
         </div>
 
-        {/* Featured Section */}
          <div className="mx-4 mt-4 bg-accent/5 p-4 border border-accent/20 rounded-sm">
            <h3 className="text-accent text-sm font-serif font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
              <Calendar size={14}/>
@@ -292,7 +266,6 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
            <p className="text-xs text-ink-light">目前全館商品以成本 8 折計算。新春優惠組熱賣中。</p>
          </div>
 
-        {/* Grid */}
         <div className="grid grid-cols-2 gap-px bg-gray-200 p-px mt-4">
           {visibleProducts.map((p: Product) => {
               const cartItem = cart.find(i => i.productId === p.id && i.pricingMode === pricingMode);
@@ -312,47 +285,41 @@ const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, update
     );
 };
 
-// 2. My Orders View
 interface MyOrdersViewProps {
   orders: Order[];
   user: User;
-  onRefresh: () => void;
+  loading: boolean;
 }
 
-const MyOrdersView: React.FC<MyOrdersViewProps> = ({ orders, user, onRefresh }) => {
+const MyOrdersView: React.FC<MyOrdersViewProps> = ({ orders, user, loading }) => {
     const myOrders = orders.filter(o => o.userId === user.id);
 
-    const deleteOrder = (id: string) => {
+    const deleteOrder = async (id: string) => {
       if(window.confirm('確定要取消這筆訂單嗎？')) {
-        dataService.deleteOrder(id);
-        onRefresh();
+        await dataService.deleteOrder(id);
       }
     };
 
-    const updateQuantity = (order: Order, itemIndex: number, delta: number) => {
+    const updateQuantity = async (order: Order, itemIndex: number, delta: number) => {
         const newItems = [...order.items];
         const item = newItems[itemIndex];
         
         if (item.bundleQuantity) {
-            // Logic for Bundle Sets
             const oldSetQty = item.bundleQuantity;
             const newSetQty = oldSetQty + delta;
             
             if (newSetQty <= 0) {
                  newItems.splice(itemIndex, 1);
             } else {
-                 const ratioBuy = item.quantity / oldSetQty; // e.g. 2
-                 const ratioFree = item.freeQuantity / oldSetQty; // e.g. 1
-                 
+                 const ratioBuy = item.quantity / oldSetQty;
+                 const ratioFree = item.freeQuantity / oldSetQty;
                  item.bundleQuantity = newSetQty;
                  item.quantity = newSetQty * ratioBuy;
                  item.freeQuantity = newSetQty * ratioFree;
                  item.totalPrice = item.unitPrice * item.quantity;
             }
         } else {
-            // Normal Logic
             item.quantity += delta;
-            
             if (item.quantity <= 0) {
                 newItems.splice(itemIndex, 1);
             } else {
@@ -361,21 +328,21 @@ const MyOrdersView: React.FC<MyOrdersViewProps> = ({ orders, user, onRefresh }) 
         }
 
         if (newItems.length === 0) {
-            deleteOrder(order.id);
+            await deleteOrder(order.id);
             return;
         }
 
-        // Recalculate order total (excluding OOS)
         const newTotal = recalculateOrderTotal(newItems);
-        
         const updatedOrder = { ...order, items: newItems, totalAmount: newTotal };
-        dataService.updateOrder(updatedOrder);
-        onRefresh();
+        await dataService.updateOrder(updatedOrder);
     };
 
     return (
       <div className="pb-24 px-4 pt-4 min-h-screen">
-        <h2 className="font-serif text-2xl mb-6">我的領料單</h2>
+        <h2 className="font-serif text-2xl mb-6 flex items-center gap-2">
+            我的領料單
+            {loading && <Loader2 className="animate-spin text-gray-400" size={20} />}
+        </h2>
         {myOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 opacity-50">
             <Package size={48} className="mb-4" />
@@ -470,7 +437,6 @@ const MyOrdersView: React.FC<MyOrdersViewProps> = ({ orders, user, onRefresh }) 
     );
 };
 
-// 3. Admin View
 interface AdminViewProps {
   orders: Order[];
   products: Product[];
@@ -481,35 +447,24 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLogout }) => {
     const [subTab, setSubTab] = useState<'orders' | 'inventory' | 'dashboard'>('orders');
     const [viewMode, setViewMode] = useState<'person' | 'brand'>('person');
-    
-    // Selection state
     const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
     const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-
-    // Dashboard View State
     const [rankViewMode, setRankViewMode] = useState<'list' | 'chart'>('list');
-    const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc'); // 'desc' (ArrowUp) = High to Low
+    const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc'); 
 
-    // Inventory State
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [formData, setFormData] = useState<Partial<Product>>({
         name: '', brand: '', costPrice: 0, isActive: true, isFeatured: false
     });
-    // Promotion form part
     const [promoType, setPromoType] = useState<'NONE' | 'BUNDLE'>('NONE');
     const [promoForm, setPromoForm] = useState<Partial<Promotion>>({
         buy: 2, get: 1, avgPriceDisplay: 0, note: ''
     });
 
-    // Announcement State
     const [announcement, setAnnouncement] = useState<Announcement>(dataService.getAnnouncement());
     const [editAnnouncement, setEditAnnouncement] = useState(false);
-
-    // Auto Lock Date Picker
     const [lockDate, setLockDate] = useState<string>('');
     const [scheduledLockInfo, setScheduledLockInfo] = useState<string | null>(null);
-
-    // --- Actions ---
 
     const toggleOrderSelection = (id: string) => {
       const newSet = new Set(selectedOrders);
@@ -525,22 +480,18 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
       setSelectedProducts(newSet);
     };
 
-    // Person View: Only deals with Order Level Status
-    const performOrderAction = (action: 'ACCEPTED' | 'PACKED') => {
+    const performOrderAction = async (action: 'ACCEPTED' | 'PACKED') => {
       let status: OrderStatus;
-      if (action === 'ACCEPTED') status = OrderStatus.LOCKED; // Mapped to Accepted/Locked
+      if (action === 'ACCEPTED') status = OrderStatus.LOCKED; 
       else status = OrderStatus.PACKED;
 
       const toUpdate = orders.filter(o => selectedOrders.has(o.id));
       const updated = toUpdate.map(o => ({ ...o, status }));
-      dataService.updateOrderBatch(updated);
+      await dataService.updateOrderBatch(updated);
       setSelectedOrders(new Set());
-      onRefresh();
     };
 
-    // Brand View: Deals with Item Level Status + Implicit Order Status changes
-    const performBrandAction = (action: 'ACCEPTED' | 'PACKED' | 'OUT_OF_STOCK' | 'RESTORE') => {
-      // Find orders that contain ANY of the selected products
+    const performBrandAction = async (action: 'ACCEPTED' | 'PACKED' | 'OUT_OF_STOCK' | 'RESTORE') => {
       const ordersToUpdate = orders.filter(o => {
           return o.items.some(item => selectedProducts.has(item.productId));
       });
@@ -564,7 +515,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                 targetStatus = OrderStatus.PACKED;
             }
 
-            // Update items
             newOrder.items = o.items.map(item => {
                 if (selectedProducts.has(item.productId)) {
                     let newItemStatus = OrderStatus.PENDING;
@@ -572,26 +522,20 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     else if (action === 'PACKED') newItemStatus = OrderStatus.PACKED;
                     else if (action === 'OUT_OF_STOCK') newItemStatus = OrderStatus.OUT_OF_STOCK;
                     else if (action === 'RESTORE') newItemStatus = OrderStatus.PENDING;
-                    
                     return { ...item, status: newItemStatus };
                 }
                 return item;
             });
 
-            // Effect 2: Update Parent Order Status if needed
             if (shouldLockOrder) {
                 newOrder.status = targetStatus;
             }
-
-            // Recalculate Total (Handle OOS Logic)
             newOrder.totalAmount = recalculateOrderTotal(newOrder.items);
-
             return newOrder;
         });
         
-        dataService.updateOrderBatch(updatedOrders);
+        await dataService.updateOrderBatch(updatedOrders);
         setSelectedProducts(new Set());
-        onRefresh();
       } catch (error) {
         console.error('[Debug] Error performing brand action:', error);
       }
@@ -599,7 +543,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
 
     const runAutoLock = () => {
         if (!lockDate) {
-            alert('請選擇自動鎖單時間 (Please select a date and time)');
+            alert('請選擇自動鎖單時間');
             return;
         }
         
@@ -607,60 +551,40 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         const now = Date.now();
         const delay = targetTime - now;
 
-        console.log(`[AutoLock Debug] Setup - Now: ${new Date().toLocaleString()}, Target: ${new Date(targetTime).toLocaleString()}, Delay: ${delay}ms`);
-
         if (delay < 0) {
-            // If time is past, execute logic immediately
-            console.log("[AutoLock Debug] Time is past, executing immediately.");
             executeLock();
             setScheduledLockInfo(null);
-            alert('自動鎖單執行完成 (Time was in past, executed immediately)');
+            alert('自動鎖單執行完成');
             return;
         }
 
-        // Schedule interval to check time
         const intervalId = setInterval(() => {
              const currentTime = Date.now();
-             // Check if we passed the target time (allow 1 minute buffer for execution window)
              if (currentTime >= targetTime) {
-                 console.log("[AutoLock Debug] Interval Triggered!");
                  executeLock();
-                 clearInterval(intervalId); // Stop checking
+                 clearInterval(intervalId);
                  setScheduledLockInfo(null);
              }
-        }, 10000); // Check every 10 seconds
+        }, 10000);
 
         setScheduledLockInfo(lockDate);
         alert('自動鎖單設定成功');
     };
 
-    const executeLock = () => {
-         console.log("[AutoLock Debug] Executing Lock Logic...");
-         const currentOrders = dataService.getOrders();
-         
-         // Lock ALL orders that are currently PENDING
+    const executeLock = async () => {
+         const currentOrders = orders;
          const toLock = currentOrders.filter(o => o.status === OrderStatus.PENDING);
-         console.log(`[AutoLock Debug] Found ${toLock.length} pending orders to lock.`);
-         
          if (toLock.length > 0) {
              const updated = toLock.map(o => {
-                 // Lock order status
                  const newOrder = {...o, status: OrderStatus.LOCKED};
-                 // Lock all items within order
                  newOrder.items = o.items.map(i => ({...i, status: OrderStatus.LOCKED}));
                  return newOrder;
              });
-             
-             dataService.updateOrderBatch(updated);
-             console.log("[AutoLock Debug] Orders updated in storage.");
-             onRefresh(); // Refresh UI
+             await dataService.updateOrderBatch(updated);
          }
     };
 
     const exportMonthlyDetails = () => {
-        // Pivot Table Logic: Brand | Product | User Columns... | Total | Note
-        
-        // 1. Filter Orders by Current Month
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
@@ -675,15 +599,11 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
             return;
         }
 
-        // 2. Get all unique users involved in orders
         const allUsersSet = new Set<string>();
         monthlyOrders.forEach(o => allUsersSet.add(o.userName));
         const userColumns = Array.from(allUsersSet).sort();
 
-        // 3. Aggregate data by Product
-        // Map<ProductId, { brand, name, userQuantities: Map<UserName, number>, total: number, note: string }>
         const productMap = new Map<string, any>();
-
         monthlyOrders.forEach(o => {
             o.items.forEach(item => {
                 if (!productMap.has(item.productId)) {
@@ -696,8 +616,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     });
                 }
                 const pData = productMap.get(item.productId);
-                
-                // Add quantity (Paid + Free)
                 const qty = item.quantity + (item.freeQuantity || 0);
                 const currentQty = pData.userQuantities.get(o.userName) || 0;
                 pData.userQuantities.set(o.userName, currentQty + qty);
@@ -705,24 +623,16 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
             });
         });
 
-        // 4. Build CSV Content
-        // BOM for Excel UTF-8 compatibility
         let csvContent = "\uFEFF"; 
-        
-        // Header Row
         csvContent += `品牌,品名,${userColumns.join(',')},總和,備註\n`;
 
-        // Data Rows
         Array.from(productMap.values()).forEach(p => {
             const userValues = userColumns.map(u => p.userQuantities.get(u) || 0);
-            // Escape commas in name or note
             const safeName = `"${p.name.replace(/"/g, '""')}"`;
             const safeNote = `"${p.note.replace(/"/g, '""')}"`;
-            
             csvContent += `${p.brand},${safeName},${userValues.join(',')},${p.total},${safeNote}\n`;
         });
 
-        // 5. Download
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -735,12 +645,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
 
     const handleInventorySubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        const promotion = promoType === 'NONE' ? undefined : {
-            type: promoType,
-            ...promoForm
-        };
-
+        const promotion = promoType === 'NONE' ? undefined : { type: promoType, ...promoForm };
         const newProduct = {
             id: editingProduct ? editingProduct.id : `prod_${Date.now()}`,
             ...formData,
@@ -760,7 +665,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         alert('公告已更新');
     };
 
-    // Shared Action Bar
     const PersonActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACCEPTED' | 'PACKED') => void }) => (
         <div className="bg-white p-4 shadow-sm space-y-4 rounded-lg mb-6">
             <div className="flex gap-2">
@@ -797,9 +701,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         </div>
     );
 
-    // --- RENDER CONTENT ---
-    
-    // Aggregation Logic for Brand View
     const itemsByBrand = subTab === 'orders' && viewMode === 'brand' 
       ? orders.reduce((acc, order) => {
             order.items.forEach(item => {
@@ -808,7 +709,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     acc[item.brand][item.productId] = {
                         id: item.productId,
                         name: item.productName,
-                        totalQty: 0, // Total Physical Units (Paid + Free)
+                        totalQty: 0,
                         orders: []
                     };
                 }
@@ -827,34 +728,29 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         }, {} as any)
       : {};
 
-    // Dashboard Data Aggregation
     const totalOrders = orders.length;
-    // Calculate total physical items moved (Paid + Free)
     const totalItems = orders.reduce((acc, o) => acc + o.items.reduce((s, i) => s + i.quantity + (i.freeQuantity || 0), 0), 0);
     const totalRevenue = orders.reduce((acc, o) => acc + o.totalAmount, 0);
 
-    // Product Ranking Data
     const productRankingMap = orders.flatMap(o => o.items).reduce((acc, item) => {
         if (!acc[item.productId]) {
             acc[item.productId] = {
                 id: item.productId,
                 name: item.productName,
-                // Clean up name for Bundles to be cleaner in charts if needed
                 displayName: item.productName.replace(' (優惠組合包)', ''),
                 brand: item.brand,
                 quantity: 0
             };
         }
-        // Count physical units (Paid + Free)
         acc[item.productId].quantity += (item.quantity + (item.freeQuantity || 0));
         return acc;
     }, {} as Record<string, {id: string, name: string, displayName: string, brand: string, quantity: number}>);
 
-    const productRanking = Object.values(productRankingMap).sort((a, b) => {
+    const productRanking = Object.values(productRankingMap).sort((a: any, b: any) => {
         if (sortDirection === 'desc') {
-            return b.quantity - a.quantity; // High to Low
+            return b.quantity - a.quantity;
         } else {
-            return a.quantity - b.quantity; // Low to High
+            return a.quantity - b.quantity;
         }
     });
 
@@ -867,7 +763,14 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
             <div className="bg-ink text-paper p-4 sticky top-0 z-20">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="font-serif tracking-widest text-lg">物料管理後台</h2>
-                    <button onClick={onLogout}><LogOut size={16}/></button>
+                    <div className="flex items-center gap-3">
+                         {dataService.isFirebaseReady() ? (
+                            <span className="text-[10px] flex items-center gap-1 text-green-400"><Cloud size={12}/> 線上</span>
+                         ) : (
+                            <span className="text-[10px] flex items-center gap-1 text-amber-500"><CloudOff size={12}/> 單機</span>
+                         )}
+                        <button onClick={onLogout}><LogOut size={16}/></button>
+                    </div>
                 </div>
                 <div className="flex gap-4 text-xs overflow-x-auto no-scrollbar">
                     <button onClick={() => {setSubTab('orders'); setViewMode('person')}} className={`uppercase tracking-wider pb-1 border-b-2 ${subTab === 'orders' && viewMode === 'person' ? 'border-accent text-white' : 'border-transparent text-gray-400'}`}>人員檢視</button>
@@ -878,7 +781,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
             </div>
             
             <div className="p-4">
-                {/* ---------------- ANNOUNCEMENT SETTINGS (In Inventory/Dashboard or Top) ---------------- */}
                 <div className="mb-6 bg-white border border-accent/20 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="font-serif font-bold text-accent flex items-center gap-2"><Megaphone size={16}/> 活動公告設定</h3>
@@ -899,10 +801,8 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     )}
                 </div>
 
-                {/* ---------------- ORDERS TAB CONTENT ---------------- */}
                 {subTab === 'orders' && (
                     <>
-                        {/* GLOBAL AUTO LOCK SECTION */}
                         <div className="bg-white p-4 shadow-sm rounded-lg mb-6 border border-yellow-100 bg-yellow-50/30">
                             <h4 className="font-bold text-sm mb-3 text-ink flex items-center gap-2">
                                 <Clock size={16} className="text-amber-600"/> 自動鎖單排程 (Auto Lock)
@@ -935,7 +835,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                             )}
                         </div>
 
-                        {/* PERSON VIEW */}
                         {viewMode === 'person' && (
                             <div className="space-y-4">
                                 <PersonActionBar selectedCount={selectedOrders.size} onAction={performOrderAction} />
@@ -982,7 +881,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                             </div>
                         )}
 
-                        {/* BRAND VIEW */}
                         {viewMode === 'brand' && (
                             <div className="space-y-6">
                                 <BrandActionBar selectedCount={selectedProducts.size} onAction={performBrandAction} />
@@ -991,7 +889,9 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                                     <div key={brand} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                                         <div className="bg-ink text-paper px-4 py-2 font-serif uppercase tracking-widest text-sm font-bold">{brand}</div>
                                         <div className="divide-y divide-gray-100">
-                                            {(Object.values(products || {}) as any[]).map((p: any, idx: number) => (
+                                            {(Object.values(products || {}) as any[]).map((item: any, idx: number) => {
+                                                const p = item;
+                                                return (
                                                 <div key={idx} className="group hover:bg-gray-50">
                                                     <div className="flex items-center p-3 gap-3">
                                                         <input 
@@ -1007,7 +907,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                                                                     <p className="font-bold text-sm text-gray-800">{p.name}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-3">
-                                                                    {/* Show TOTAL units (Paid + Free) for warehouse picking */}
                                                                     <span className="text-lg font-serif font-bold text-ink" title="總領料數 (付費+贈品)">{p.totalQty}</span>
                                                                     <ChevronRight size={14} className="text-gray-300 group-open/details:rotate-90 transition-transform"/>
                                                                 </div>
@@ -1034,7 +933,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                                                         </details>
                                                     </div>
                                                 </div>
-                                            ))}
+                                            )})}
                                         </div>
                                     </div>
                                 ))}
@@ -1052,7 +951,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     </>
                 )}
 
-                {/* ---------------- INVENTORY ---------------- */}
                 {subTab === 'inventory' && (
                     <div className="space-y-8">
                         <form onSubmit={handleInventorySubmit} className="bg-white p-6 shadow-sm border border-gray-100 space-y-4 rounded-lg">
@@ -1063,7 +961,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                                 <input type="number" className="border p-2 text-sm w-full rounded" placeholder="成本價" value={formData.costPrice || ''} onChange={e => setFormData({...formData, costPrice: Number(e.target.value)})} required />
                             </div>
                             
-                            {/* Promotion Config */}
                             <div className="bg-gray-50 p-3 rounded border border-gray-200">
                                 <div className="flex gap-4 mb-2">
                                     <label className="text-sm font-bold flex items-center gap-1">
@@ -1137,17 +1034,14 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     </div>
                 )}
 
-                {/* ---------------- DASHBOARD ---------------- */}
                 {subTab === 'dashboard' && (
                     <div className="space-y-6">
-                        {/* Summary Cards */}
                         <div className="grid grid-cols-3 gap-4">
                             <div className="bg-white p-4 text-center border border-gray-100 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-500">總訂單數</p><p className="text-2xl font-serif">{totalOrders}</p></div>
                             <div className="bg-white p-4 text-center border border-gray-100 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-500">總支數/件</p><p className="text-2xl font-serif">{totalItems}</p></div>
                             <div className="bg-white p-4 text-center border border-gray-100 rounded-lg"><p className="text-[10px] uppercase tracking-widest text-gray-500">總金額</p><p className="text-2xl font-serif">{totalRevenue.toLocaleString()}</p></div>
                         </div>
 
-                        {/* Popular Products Ranking */}
                         <div className="bg-white p-4 border border-gray-100 rounded-lg min-h-[400px]">
                             <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
                                 <h3 className="font-serif text-sm font-bold flex items-center gap-2">
@@ -1238,8 +1132,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     );
 };
 
-// --- Login Screen ---
-
 const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -1251,7 +1143,6 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
       return;
     }
     
-    // Check against VALID_USERS via dataService
     const user = dataService.login(name);
     
     if (!user) {
@@ -1267,6 +1158,17 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
       <div className="w-full max-w-sm">
         <h1 className="text-4xl font-serif font-bold text-center mb-2 tracking-widest">TiAM</h1>
         <p className="text-center text-ink-light mb-12 font-serif text-sm tracking-wider uppercase">物料室管理系統</p>
+        
+        {!dataService.isFirebaseReady() && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-6 text-xs text-amber-800 flex gap-2 items-start">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <div>
+                    <strong>注意：尚未設定雲端資料庫</strong><br/>
+                    目前為「單機試用模式」，其他人無法看到您的訂單。若需多人連線，請於程式碼中設定 Firebase API。
+                </div>
+            </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative border-b border-ink-light/50 focus-within:border-accent transition-colors">
             <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(''); }} placeholder="請輸入姓名進入系統" className="w-full bg-transparent py-3 px-2 outline-none text-lg font-serif placeholder:text-ink-light/50" />
@@ -1279,42 +1181,44 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
   );
 };
 
-// --- Main App ---
-
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<'shop' | 'orders' | 'admin'>('shop');
   const [pricingMode, setPricingMode] = useState<PricingMode>(PricingMode.SPECIAL);
   
-  // Data State
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   
-  // UI State
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutPreviewOpen, setIsCheckoutPreviewOpen] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useEffect(() => {
     setProducts(dataService.getProducts());
-    setOrders(dataService.getOrders());
-    const ann = dataService.getAnnouncement();
-    setAnnouncement(ann);
-    // Initial check handled by login flow now
+    setAnnouncement(dataService.getAnnouncement());
+
+    setIsLoadingOrders(true);
+    const unsubscribe = dataService.subscribeToOrders((newOrders) => {
+        setOrders(newOrders);
+        setIsLoadingOrders(false);
+    });
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const refreshData = () => {
     setProducts(dataService.getProducts());
-    setOrders(dataService.getOrders());
     setAnnouncement(dataService.getAnnouncement());
   };
 
   const handleLogin = (u: User) => {
     setUser(u);
     const ann = dataService.getAnnouncement();
-    // Logic 5: Show Announcement on EVERY login
     if (ann && ann.isActive) {
         setShowAnnouncement(true);
     }
@@ -1332,18 +1236,16 @@ export default function App() {
         if (newQty <= 0) {
            updatedCart.splice(existingIndex, 1);
         } else {
-           // For bundles, qty is SETS. For normal, qty is UNITS.
            updatedCart[existingIndex] = { 
                ...updatedCart[existingIndex], 
                quantity: newQty,
-               freeQuantity: 0 // No legacy free quantity
+               freeQuantity: 0
            };
         }
         return updatedCart;
       } else {
         if (delta > 0) {
           const isBundle = product.promotion?.type === 'BUNDLE';
-          // FIX: Snapshot Cost Price for Bundles (No discount applied before bundle calculation)
           const priceSnapshot = isBundle ? product.costPrice : calculatePrice(product.costPrice, pricingMode);
           
           return [...prev, { 
@@ -1360,7 +1262,7 @@ export default function App() {
     });
   };
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (!user || cart.length === 0) return;
 
     const itemsByMode = cart.reduce((acc, item) => {
@@ -1369,14 +1271,17 @@ export default function App() {
       return acc;
     }, {} as Record<PricingMode, CartItem[]>);
 
+    const orderPromises: Promise<void>[] = [];
+
     Object.entries(itemsByMode).forEach(([mode, items]) => {
-      const orderItems = (items as CartItem[]).map(item => {
-        const product = products.find(p => p.id === item.productId)!;
+      const orderItems = (items as CartItem[]).map((item): Order['items'][0] | null => {
+        const product = products.find(p => p.id === item.productId);
+        // Safety check if product was removed while in cart
+        if (!product) return null;
+
         const isBundle = item.isBundle;
 
         if (isBundle && product.promotion?.type === 'BUNDLE') {
-            // TRANSFORMATION LOGIC: Convert Bundle "Sets" to Backend "Units"
-            // Example: 1 Set (Buy 2 Get 1) -> Paid: 2, Free: 1.
             const sets = item.quantity;
             const unitPaid = product.promotion.buy;
             const unitFree = product.promotion.get;
@@ -1384,17 +1289,16 @@ export default function App() {
             return {
                 productId: product.id,
                 productName: `${product.name} (優惠組合包)`,
-                quantity: sets * unitPaid, // Total Paid Units
-                freeQuantity: sets * unitFree, // Total Free Units
-                bundleQuantity: sets, // Store how many sets were ordered
-                unitPrice: item.snapshotPrice, // Price per Unit (Cost Price)
-                totalPrice: (item.snapshotPrice * unitPaid) * sets, // Total Price = UnitPrice * PaidCount * Sets
+                quantity: sets * unitPaid,
+                freeQuantity: sets * unitFree, 
+                bundleQuantity: sets, 
+                unitPrice: item.snapshotPrice, 
+                totalPrice: (item.snapshotPrice * unitPaid) * sets,
                 brand: product.brand,
                 status: OrderStatus.PENDING,
                 note: product.promotion?.note || '新春優惠組'
             };
         } else {
-            // Normal Logic
             return {
                 productId: product.id,
                 productName: product.name,
@@ -1407,23 +1311,27 @@ export default function App() {
                 note: product.promotion?.note
             };
         }
-      });
+      }).filter((item) => item !== null) as Order['items'];
 
-      const totalAmount = recalculateOrderTotal(orderItems);
+      if (orderItems.length > 0) {
+          const totalAmount = recalculateOrderTotal(orderItems);
 
-      const newOrder: Order = {
-        id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        userId: user.id,
-        userName: user.name,
-        timestamp: Date.now(),
-        status: OrderStatus.PENDING,
-        pricingMode: mode as PricingMode,
-        items: orderItems,
-        totalAmount
-      };
+          const newOrder: Order = {
+            id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            userId: user.id,
+            userName: user.name,
+            timestamp: Date.now(),
+            status: OrderStatus.PENDING,
+            pricingMode: mode as PricingMode,
+            items: orderItems,
+            totalAmount
+          };
 
-      dataService.createOrder(newOrder);
+          orderPromises.push(dataService.createOrder(newOrder));
+      }
     });
+
+    await Promise.all(orderPromises);
 
     setCart([]);
     setIsCheckoutPreviewOpen(false);
@@ -1434,13 +1342,9 @@ export default function App() {
 
   if (!user) return <LoginScreen onLogin={handleLogin} />;
 
-  // --- Cart Modal ---
   const CartModal = () => {
     if (!isCartOpen) return null;
     
-    // Total Calculation:
-    // If Bundle: Qty(Sets) * (UnitPrice * BundleBuyCount)
-    // If Normal: Qty(Units) * UnitPrice
     const total = cart.reduce((sum, item) => {
         const product = products.find(p => p.id === item.productId);
         if (item.isBundle && product?.promotion?.type === 'BUNDLE') {
@@ -1519,7 +1423,6 @@ export default function App() {
     );
   };
 
-  // --- Checkout Preview Modal ---
   const CheckoutPreviewModal = () => {
       if (!isCheckoutPreviewOpen) return null;
       
@@ -1539,7 +1442,6 @@ export default function App() {
             <div className="p-6 overflow-y-auto">
                 <p className="text-sm text-gray-500 mb-4">請確認以下商品無誤，送出後將產生領料單。</p>
                 
-                {/* Promo Announcement in Checkout */}
                 {announcement && announcement.isActive && (
                     <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-xs text-red-700 leading-relaxed font-bold flex items-start gap-2">
                         <Megaphone size={16} className="shrink-0 mt-0.5" />
@@ -1602,9 +1504,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-paper text-ink selection:bg-accent selection:text-white pb-safe">
-      <main className="max-w-md mx-auto min-h-screen bg-white shadow-xl relative overflow-hidden">
+      <main className="w-full max-w-md md:max-w-lg mx-auto min-h-screen bg-white shadow-xl relative overflow-hidden transition-all duration-300">
         
-        {/* Active View */}
         {activeTab === 'shop' && (
           <ShopView 
             products={products} 
@@ -1618,7 +1519,7 @@ export default function App() {
           <MyOrdersView 
             orders={orders} 
             user={user} 
-            onRefresh={refreshData}
+            loading={isLoadingOrders}
           />
         )}
         {activeTab === 'admin' && (
@@ -1630,11 +1531,10 @@ export default function App() {
           />
         )}
 
-        {/* Floating Cart Button */}
         {activeTab === 'shop' && (
             <button 
                 onClick={() => setIsCartOpen(true)}
-                className={`fixed bottom-24 right-4 bg-ink text-white w-14 h-14 rounded-full shadow-xl z-30 flex items-center justify-center transition-transform active:scale-95 ${cart.length > 0 ? 'animate-bounce-subtle' : 'opacity-80'}`}
+                className={`fixed bottom-24 right-4 md:right-[calc(50%-28px+256px)] bg-ink text-white w-14 h-14 rounded-full shadow-xl z-30 flex items-center justify-center transition-transform active:scale-95 ${cart.length > 0 ? 'animate-bounce-subtle' : 'opacity-80'}`}
             >
                 <ShoppingBag size={24} />
                 {cart.length > 0 && (
@@ -1645,8 +1545,7 @@ export default function App() {
             </button>
         )}
 
-        {/* Navigation */}
-        <nav className="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-200 flex justify-around py-3 pb-safe z-40 text-[10px] uppercase font-bold tracking-widest text-gray-400">
+        <nav className="fixed bottom-0 w-full max-w-md md:max-w-lg bg-white border-t border-gray-200 flex justify-around py-3 pb-safe z-40 text-[10px] uppercase font-bold tracking-widest text-gray-400">
             <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-1 ${activeTab === 'shop' ? 'text-ink' : 'hover:text-gray-600'}`}><ShoppingBag size={20} strokeWidth={activeTab === 'shop' ? 2 : 1.5} /><span>商店</span></button>
             <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 ${activeTab === 'orders' ? 'text-ink' : 'hover:text-gray-600'}`}><UserIcon size={20} strokeWidth={activeTab === 'orders' ? 2 : 1.5} /><span>我的訂單</span></button>
             {user.role === UserRole.ADMIN && (
@@ -1654,11 +1553,9 @@ export default function App() {
             )}
         </nav>
 
-        {/* Modals */}
         <CartModal />
         <CheckoutPreviewModal />
         
-        {/* Announcement Modal */}
         {announcement && showAnnouncement && (
             <AnnouncementModal announcement={announcement} onClose={() => setShowAnnouncement(false)} />
         )}
