@@ -442,9 +442,10 @@ interface AdminViewProps {
   products: Product[];
   onRefresh: () => void;
   onLogout: () => void;
+  announcement: Announcement; // Changed: Pass as prop
 }
 
-const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLogout }) => {
+const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLogout, announcement }) => {
     const [subTab, setSubTab] = useState<'orders' | 'inventory' | 'dashboard'>('orders');
     const [viewMode, setViewMode] = useState<'person' | 'brand'>('person');
     const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -461,8 +462,16 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         buy: 2, get: 1, avgPriceDisplay: 0, note: ''
     });
 
-    const [announcement, setAnnouncement] = useState<Announcement>(dataService.getAnnouncement());
+    const [announcementForm, setAnnouncementForm] = useState<Announcement>(announcement);
     const [editAnnouncement, setEditAnnouncement] = useState(false);
+    
+    // Sync announcement prop to local form when not editing
+    useEffect(() => {
+        if(!editAnnouncement) {
+            setAnnouncementForm(announcement);
+        }
+    }, [announcement, editAnnouncement]);
+
     const [lockDate, setLockDate] = useState<string>('');
     const [scheduledLockInfo, setScheduledLockInfo] = useState<string | null>(null);
 
@@ -659,8 +668,8 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         onRefresh();
     };
 
-    const handleAnnouncementSave = () => {
-        dataService.saveAnnouncement(announcement);
+    const handleAnnouncementSave = async () => {
+        await dataService.saveAnnouncement(announcementForm);
         setEditAnnouncement(false);
         alert('公告已更新');
     };
@@ -788,15 +797,15 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                     </div>
                     {editAnnouncement ? (
                         <div className="space-y-3">
-                            <input className="w-full border p-2 text-sm rounded" placeholder="標題" value={announcement.title} onChange={e => setAnnouncement({...announcement, title: e.target.value})} />
-                            <textarea className="w-full border p-2 text-sm rounded h-24" placeholder="公告內容 (支援多行)" value={announcement.content} onChange={e => setAnnouncement({...announcement, content: e.target.value})} />
-                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={announcement.isActive} onChange={e => setAnnouncement({...announcement, isActive: e.target.checked})} /> 啟用公告</label>
+                            <input className="w-full border p-2 text-sm rounded" placeholder="標題" value={announcementForm.title} onChange={e => setAnnouncementForm({...announcementForm, title: e.target.value})} />
+                            <textarea className="w-full border p-2 text-sm rounded h-24" placeholder="公告內容 (支援多行)" value={announcementForm.content} onChange={e => setAnnouncementForm({...announcementForm, content: e.target.value})} />
+                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={announcementForm.isActive} onChange={e => setAnnouncementForm({...announcementForm, isActive: e.target.checked})} /> 啟用公告</label>
                             <button onClick={handleAnnouncementSave} className="bg-accent text-white px-4 py-1.5 text-xs rounded">儲存公告</button>
                         </div>
                     ) : (
                         <div className="text-sm">
-                            <p className="font-bold">{announcement.title} <span className={`text-[10px] px-1 rounded ${announcement.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{announcement.isActive ? '顯示中' : '已隱藏'}</span></p>
-                            <p className="text-gray-500 line-clamp-1">{announcement.content}</p>
+                            <p className="font-bold">{announcementForm.title} <span className={`text-[10px] px-1 rounded ${announcementForm.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{announcementForm.isActive ? '顯示中' : '已隱藏'}</span></p>
+                            <p className="text-gray-500 line-clamp-1">{announcementForm.content}</p>
                         </div>
                     )}
                 </div>
@@ -1190,15 +1199,13 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [announcement, setAnnouncement] = useState<Announcement>(dataService.getAnnouncement()); // Initial state fallback
   
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutPreviewOpen, setIsCheckoutPreviewOpen] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   useEffect(() => {
-    setAnnouncement(dataService.getAnnouncement());
-
     setIsLoadingOrders(true);
     const unsubscribeOrders = dataService.subscribeToOrders((newOrders) => {
         setOrders(newOrders);
@@ -1210,20 +1217,27 @@ export default function App() {
         setProducts(newProducts);
     });
 
+    // Subscribe to Announcement (Cloud Sync)
+    const unsubscribeAnnouncement = dataService.subscribeToAnnouncement((newAnnouncement) => {
+        setAnnouncement(newAnnouncement);
+    });
+
     return () => {
         if (unsubscribeOrders) unsubscribeOrders();
         if (unsubscribeProducts) unsubscribeProducts();
+        if (unsubscribeAnnouncement) unsubscribeAnnouncement();
     };
   }, []);
 
   const refreshData = () => {
-    setAnnouncement(dataService.getAnnouncement());
+     // No need to fetch manually for subscribed data
+     // Trigger any other UI refresh if needed, or leave empty
   };
 
   const handleLogin = (u: User) => {
     setUser(u);
-    const ann = dataService.getAnnouncement();
-    if (ann && ann.isActive) {
+    // Use the current state of announcement (populated by subscription or local fallback)
+    if (announcement && announcement.isActive) {
         setShowAnnouncement(true);
     }
   };
@@ -1532,6 +1546,7 @@ export default function App() {
             products={products} 
             onRefresh={refreshData}
             onLogout={() => { setUser(null); setActiveTab('shop'); }}
+            announcement={announcement}
           />
         )}
 

@@ -948,14 +948,51 @@ export const dataService = {
   getAnnouncement: (): Announcement => {
     const stored = localStorage.getItem(KEYS.ANNOUNCEMENT);
     if (!stored) {
-      localStorage.setItem(KEYS.ANNOUNCEMENT, JSON.stringify(INITIAL_ANNOUNCEMENT));
+      // Return initial if nothing stored locally yet
       return INITIAL_ANNOUNCEMENT;
     }
     return JSON.parse(stored);
   },
 
-  saveAnnouncement: (announcement: Announcement) => {
-    localStorage.setItem(KEYS.ANNOUNCEMENT, JSON.stringify(announcement));
+  subscribeToAnnouncement: (callback: (announcement: Announcement) => void) => {
+      if (!isDbEnabled || !db) {
+          // Fallback to local storage logic
+          const stored = localStorage.getItem(KEYS.ANNOUNCEMENT);
+          callback(stored ? JSON.parse(stored) : INITIAL_ANNOUNCEMENT);
+
+          const interval = setInterval(() => {
+              const current = localStorage.getItem(KEYS.ANNOUNCEMENT);
+              if (current) callback(JSON.parse(current));
+          }, 2000);
+          return () => clearInterval(interval);
+      }
+
+      // Firestore Subscription
+      const docRef = doc(db, "system", "announcement");
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+              callback(docSnap.data() as Announcement);
+          } else {
+              // If no announcement exists yet, seed the initial one locally or just return it
+              callback(INITIAL_ANNOUNCEMENT);
+          }
+      }, (error) => {
+          console.error("Error fetching announcement:", error);
+          // Fallback on error
+          callback(INITIAL_ANNOUNCEMENT);
+      });
+
+      return unsubscribe;
+  },
+
+  saveAnnouncement: async (announcement: Announcement) => {
+    if (isDbEnabled && db) {
+        // Sanitize
+        const safeData = JSON.parse(JSON.stringify(announcement));
+        await setDoc(doc(db, "system", "announcement"), safeData);
+    } else {
+        localStorage.setItem(KEYS.ANNOUNCEMENT, JSON.stringify(announcement));
+    }
   },
 
   // Products
@@ -1090,7 +1127,9 @@ export const dataService = {
   createOrder: async (order: Order) => {
     if (isDbEnabled && db) {
         // We use setDoc with order.id to ensure ID consistency if generated on client
-        await setDoc(doc(db, "orders", order.id), order);
+        // Sanitize undefined values before sending to Firestore
+        const safeOrder = JSON.parse(JSON.stringify(order));
+        await setDoc(doc(db, "orders", order.id), safeOrder);
     } else {
         const orders = dataService.getOrdersLocalFallback();
         orders.unshift(order);
@@ -1101,7 +1140,9 @@ export const dataService = {
   updateOrder: async (updatedOrder: Order) => {
     if (isDbEnabled && db) {
         const orderRef = doc(db, "orders", updatedOrder.id);
-        await updateDoc(orderRef, { ...updatedOrder });
+        // Sanitize undefined values
+        const safeOrder = JSON.parse(JSON.stringify(updatedOrder));
+        await updateDoc(orderRef, safeOrder);
     } else {
         const orders = dataService.getOrdersLocalFallback();
         const index = orders.findIndex(o => o.id === updatedOrder.id);
@@ -1116,7 +1157,9 @@ export const dataService = {
       if (isDbEnabled && db) {
           const promises = updatedOrders.map(o => {
              const orderRef = doc(db, "orders", o.id);
-             return updateDoc(orderRef, { ...o });
+             // Sanitize undefined values
+             const safeOrder = JSON.parse(JSON.stringify(o));
+             return updateDoc(orderRef, safeOrder);
           });
           await Promise.all(promises);
       } else {
