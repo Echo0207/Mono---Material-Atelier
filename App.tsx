@@ -25,8 +25,7 @@ import {
   List,
   BarChart2,
   Download,
-  Clock,
-  Trash2
+  Clock
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -527,16 +526,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     };
 
     // Person View: Only deals with Order Level Status
-    const performOrderAction = (action: 'ACCEPTED' | 'PACKED' | 'DELETE') => {
-      if (action === 'DELETE') {
-          if (!window.confirm(`確定要刪除選取的 ${selectedOrders.size} 筆訂單嗎？此動作無法復原。`)) return;
-          
-          selectedOrders.forEach(id => dataService.deleteOrder(id));
-          setSelectedOrders(new Set());
-          onRefresh();
-          return;
-      }
-
+    const performOrderAction = (action: 'ACCEPTED' | 'PACKED') => {
       let status: OrderStatus;
       if (action === 'ACCEPTED') status = OrderStatus.LOCKED; // Mapped to Accepted/Locked
       else status = OrderStatus.PACKED;
@@ -771,7 +761,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     };
 
     // Shared Action Bar
-    const PersonActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACCEPTED' | 'PACKED' | 'DELETE') => void }) => (
+    const PersonActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACCEPTED' | 'PACKED') => void }) => (
         <div className="bg-white p-4 shadow-sm space-y-4 rounded-lg mb-6">
             <div className="flex gap-2">
                 <button onClick={() => onAction('ACCEPTED')} disabled={selectedCount===0} className="flex-1 flex flex-col items-center justify-center bg-green-600 text-white py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
@@ -779,10 +769,6 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                 </button>
                 <button onClick={() => onAction('PACKED')} disabled={selectedCount===0} className="flex-1 flex flex-col items-center justify-center bg-blue-600 text-white py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
                     <Box size={18} className="mb-1"/><span className="text-xs font-bold">已整理 (鎖單)</span>
-                </button>
-                <button onClick={() => onAction('DELETE')} disabled={selectedCount===0} className="w-12 flex flex-col items-center justify-center bg-red-100 text-red-600 border border-red-200 py-3 px-1 rounded disabled:opacity-50 active:scale-95 transition-transform">
-                    <Trash2 size={18} className="mb-1"/>
-                    <span className="text-[10px] font-bold">刪除</span>
                 </button>
             </div>
         </div>
