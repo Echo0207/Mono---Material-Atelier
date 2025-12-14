@@ -746,7 +746,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         return acc;
     }, {} as Record<string, {id: string, name: string, displayName: string, brand: string, quantity: number}>);
 
-    const productRanking = Object.values(productRankingMap).sort((a: any, b: any) => {
+    const productRanking: {id: string, name: string, displayName: string, brand: string, quantity: number}[] = Object.values(productRankingMap).sort((a, b) => {
         if (sortDirection === 'desc') {
             return b.quantity - a.quantity;
         } else {
