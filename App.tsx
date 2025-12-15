@@ -225,10 +225,15 @@ interface ShopViewProps {
 
 const ShopView: React.FC<ShopViewProps> = ({ products, pricingMode, cart, updateCartItem, onLogout }) => {
     const [filterBrand, setFilterBrand] = useState<string>('');
-    const brands: string[] = Array.from(new Set((products || []).map(p => p.brand)));
     
-    const visibleProducts: Product[] = (products || [])
-      .filter(p => p.isActive)
+    // Calculate active products first
+    const activeProducts = (products || []).filter(p => p.isActive);
+    
+    // Derive brands ONLY from active products
+    const brands: string[] = Array.from<string>(new Set(activeProducts.map(p => p.brand))).sort();
+    
+    // Filter the already active products by brand
+    const visibleProducts: Product[] = activeProducts
       .filter(p => !filterBrand || p.brand === filterBrand)
       .sort((a, b) => {
           const aIsBundle = a.promotion?.type === 'BUNDLE' ? 1 : 0;
@@ -646,7 +651,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
 
         const allUsersSet = new Set<string>();
         monthlyOrders.forEach(o => allUsersSet.add(o.userName));
-        const userColumns = Array.from(allUsersSet).sort();
+        const userColumns = Array.from<string>(allUsersSet).sort();
 
         const productMap = new Map<string, any>();
         monthlyOrders.forEach(o => {
