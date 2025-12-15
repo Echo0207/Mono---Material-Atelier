@@ -127,8 +127,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const bundlePrice = isBundle ? baseUnitPrice * bundlePaidQty : 0;
 
   let displayPrice = baseUnitPrice;
+  let originalPrice = product.costPrice;
+
   if (isBundle) {
       displayPrice = bundlePrice;
+      // Calculate total value of the bundle (including free items) at base cost
+      originalPrice = product.costPrice * bundleTotalQty;
   }
   
   const borderClass = 'border border-transparent hover:border-ink-light/20';
@@ -164,10 +168,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
         <div className="mt-auto flex justify-between items-end pt-2 border-t border-dashed border-gray-100">
            <div className="flex flex-col">
-               <span className={`font-serif text-xl ${isBundle ? 'text-red-600 font-bold' : 'text-accent'}`}>
+               {/* Original Price (Crossed out) */}
+               {originalPrice > displayPrice && (
+                   <span className="text-xs text-gray-400 line-through decoration-gray-300 font-sans mb-0.5">
+                       {formatCurrency(originalPrice)}
+                   </span>
+               )}
+               {/* Sale Price */}
+               <span className={`font-serif text-xl leading-none ${isBundle ? 'text-red-600 font-bold' : 'text-accent'}`}>
                 {formatCurrency(displayPrice)}
                </span>
-               <span className="text-[10px] text-gray-400">
+               <span className="text-[10px] text-gray-400 mt-1">
                     {isBundle ? '組合價' : '設購日價'}
                </span>
            </div>
@@ -755,7 +766,7 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         return acc;
     }, {} as Record<string, {id: string, name: string, displayName: string, brand: string, quantity: number}>);
 
-    const productRanking: {id: string, name: string, displayName: string, brand: string, quantity: number}[] = Object.values(productRankingMap).sort((a, b) => {
+    const productRanking = (Object.values(productRankingMap) as {id: string, name: string, displayName: string, brand: string, quantity: number}[]).sort((a, b) => {
         if (sortDirection === 'desc') {
             return b.quantity - a.quantity;
         } else {
