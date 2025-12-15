@@ -27,7 +27,8 @@ import {
   Clock,
   Cloud,
   CloudOff,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -463,6 +464,10 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
     const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
     const [rankViewMode, setRankViewMode] = useState<'list' | 'chart'>('list');
     const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc'); 
+    
+    // New State for Inventory Brand Filter
+    const [inventoryFilterBrand, setInventoryFilterBrand] = useState<string>('');
+    const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(new Set());
 
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [formData, setFormData] = useState<Partial<Product>>({
@@ -498,6 +503,13 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
       if (newSet.has(productId)) newSet.delete(productId);
       else newSet.add(productId);
       setSelectedProducts(newSet);
+    };
+
+    const toggleInventorySelection = (id: string) => {
+        const newSet = new Set(selectedInventoryIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedInventoryIds(newSet);
     };
 
     const performOrderAction = async (action: 'ACCEPTED' | 'PACKED') => {
@@ -559,6 +571,19 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
       } catch (error) {
         console.error('[Debug] Error performing brand action:', error);
       }
+    };
+
+    const performInventoryBatchAction = async (action: 'ACTIVATE' | 'DEACTIVATE') => {
+        if (!window.confirm(`確定要將選取的 ${selectedInventoryIds.size} 項商品${action === 'ACTIVATE' ? '上架' : '下架'}嗎？`)) return;
+
+        const isActive = action === 'ACTIVATE';
+        const productsToUpdate = products
+            .filter(p => selectedInventoryIds.has(p.id))
+            .map(p => ({ ...p, isActive }));
+        
+        await dataService.updateProductBatch(productsToUpdate);
+        setSelectedInventoryIds(new Set());
+        onRefresh();
     };
 
     const runAutoLock = () => {
@@ -663,6 +688,12 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
         document.body.removeChild(link);
     };
 
+    const handleResetDatabase = async () => {
+        if(window.confirm('警告：此操作將清除資料庫中所有現有商品，並重新寫入程式碼中的預設商品清單。\n\n這通常用於更新商品目錄。\n\n確定要繼續嗎？')) {
+            await dataService.resetProductDatabase();
+        }
+    };
+
     const handleInventorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const promotion = promoType === 'NONE' ? undefined : { type: promoType, ...promoForm };
@@ -718,6 +749,20 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                 <AlertCircle size={12} />
                 <p>注意：「受理」與「整理」將強制鎖定相關訂單。「缺貨」不影響訂單狀態。</p>
              </div>
+        </div>
+    );
+
+    const InventoryActionBar = ({ selectedCount, onAction }: { selectedCount: number, onAction: (action: 'ACTIVATE' | 'DEACTIVATE') => void }) => (
+        <div className="bg-white p-3 shadow-sm border border-gray-200 rounded-lg mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <span className="text-xs font-bold text-gray-500 ml-2">已選取 {selectedCount} 項</span>
+            <div className="flex gap-2">
+                <button onClick={() => onAction('ACTIVATE')} className="bg-green-100 text-green-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-green-200 transition-colors flex items-center gap-1">
+                    <CheckCircle size={14} /> 上架
+                </button>
+                <button onClick={() => onAction('DEACTIVATE')} className="bg-red-50 text-red-600 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1">
+                    <X size={14} /> 下架
+                </button>
+            </div>
         </div>
     );
 
@@ -1021,10 +1066,77 @@ const AdminView: React.FC<AdminViewProps> = ({ orders, products, onRefresh, onLo
                                 }} className="border px-4 py-2 text-sm uppercase rounded">取消</button>}
                             </div>
                         </form>
+                        
+                        {/* New Reset Button */}
+                        <div className="border-b border-gray-200 pb-6 mb-6">
+                            <button 
+                                onClick={handleResetDatabase}
+                                className="w-full py-3 border border-red-200 bg-red-50 text-red-600 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
+                            >
+                                <Trash2 size={16} /> ⚠️ 重置並同步商品資料庫 (從程式碼更新)
+                            </button>
+                            <p className="text-center text-[10px] text-gray-400 mt-2">
+                                注意：這將刪除目前資料庫中的所有商品，並重新匯入程式碼中定義的清單。
+                            </p>
+                        </div>
+
+                        {/* Filter Section */}
+                        {selectedInventoryIds.size > 0 && (
+                            <InventoryActionBar 
+                                selectedCount={selectedInventoryIds.size} 
+                                onAction={performInventoryBatchAction} 
+                            />
+                        )}
+
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-4 h-4 rounded border-gray-300 text-ink focus:ring-ink cursor-pointer"
+                                    onChange={(e) => {
+                                        const visibleIds = products
+                                            .filter(p => !inventoryFilterBrand || p.brand === inventoryFilterBrand)
+                                            .map(p => p.id);
+                                        if (e.target.checked) {
+                                            setSelectedInventoryIds(new Set(visibleIds));
+                                        } else {
+                                            setSelectedInventoryIds(new Set());
+                                        }
+                                    }}
+                                    checked={
+                                        selectedInventoryIds.size > 0 && 
+                                        selectedInventoryIds.size === products.filter(p => !inventoryFilterBrand || p.brand === inventoryFilterBrand).length
+                                    }
+                                />
+                                <h4 className="font-bold text-sm text-gray-500">商品列表 ({products.filter(p => !inventoryFilterBrand || p.brand === inventoryFilterBrand).length})</h4>
+                            </div>
+                            <div className="relative">
+                                <Filter className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
+                                <select 
+                                    value={inventoryFilterBrand} 
+                                    onChange={(e) => setInventoryFilterBrand(e.target.value)}
+                                    className="pl-7 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-ink transition-colors"
+                                >
+                                    <option value="">全部品牌</option>
+                                    {Array.from(new Set(products.map(p => p.brand))).sort().map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
-                            {products.map(p => (
+                            {products
+                                .filter(p => !inventoryFilterBrand || p.brand === inventoryFilterBrand)
+                                .map(p => (
                                 <div key={p.id} className={`bg-white p-3 flex justify-between items-center border rounded ${p.promotion?.type === 'BUNDLE' ? 'border-red-200 bg-red-50/10' : 'border-gray-100'}`}>
                                     <div className="flex items-center gap-3">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedInventoryIds.has(p.id)} 
+                                            onChange={() => toggleInventorySelection(p.id)} 
+                                            className="w-4 h-4 rounded border-gray-300 text-ink focus:ring-ink cursor-pointer" 
+                                        />
                                         <div>
                                             <p className="text-sm font-bold flex items-center gap-2">
                                                 {p.name}

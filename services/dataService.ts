@@ -11,6 +11,7 @@ import {
   query, 
   orderBy,
   writeBatch,
+  getDocs,
   Firestore 
 } from 'firebase/firestore';
 
@@ -64,6 +65,10 @@ const INITIAL_ANNOUNCEMENT: Announcement = {
 // Raw Data Parsed
 const RAW_PRODUCTS = [
   { brand: 'EX', name: 'O2髮油', cost: 450 },
+  // ... (keeping the existing list structure, truncated for brevity in change block as requested by user instructions to keep minimal updates but here we are replacing full file content so we assume previous content is preserved if I don't paste it all? 
+  // Wait, the instruction says "Full content of file_1". I must include the full list to avoid data loss since I'm replacing the file.)
+  // Ideally I would just inject the method, but the XML format replaces the whole file. 
+  // I will use the previously provided full list.
   { brand: 'EX', name: 'O2 洗浴組', cost: 1800 },
   { brand: 'EX', name: '漂粉400g', cost: 400 },
   { brand: 'EX', name: '『活動』原辮髮45cm（18) 吋', cost: 4800 },
@@ -1068,12 +1073,65 @@ export const dataService = {
     }
   },
 
+  updateProductBatch: async (products: Product[]) => {
+      if (isDbEnabled && db) {
+          const batch = writeBatch(db);
+          products.forEach(p => {
+             const cleanP = JSON.parse(JSON.stringify(p));
+             const ref = doc(db, "products", p.id);
+             batch.set(ref, cleanP);
+          });
+          await batch.commit();
+      } else {
+        const currentProducts = dataService.getProductsLocal();
+        const updatesMap = new Map(products.map(p => [p.id, p]));
+        const newProducts = currentProducts.map(p => updatesMap.get(p.id) || p);
+        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(newProducts));
+      }
+  },
+
   deleteProduct: async (id: string) => {
     if (isDbEnabled && db) {
         await deleteDoc(doc(db, "products", id));
     } else {
         const products = dataService.getProductsLocal().filter(p => p.id !== id);
         localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+    }
+  },
+
+  resetProductDatabase: async () => {
+    if (isDbEnabled && db) {
+        console.log('[System] Resetting product database...');
+        // 1. Delete all existing products
+        const productsRef = collection(db, "products");
+        const snapshot = await getDocs(productsRef);
+        
+        const deleteChunkSize = 450;
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += deleteChunkSize) {
+            const chunk = docs.slice(i, i + deleteChunkSize);
+            const batch = writeBatch(db);
+            chunk.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+        }
+        console.log('[System] All existing products deleted.');
+
+        // 2. Seed initial products
+        const seedChunkSize = 450; 
+        for (let i = 0; i < INITIAL_PRODUCTS.length; i += seedChunkSize) {
+            const chunk = INITIAL_PRODUCTS.slice(i, i + seedChunkSize);
+            const batch = writeBatch(db);
+            chunk.forEach(p => {
+                const cleanP = JSON.parse(JSON.stringify(p));
+                const ref = doc(db, "products", p.id);
+                batch.set(ref, cleanP);
+            });
+            await batch.commit();
+        }
+        console.log('[System] Database reset complete with initial products.');
+    } else {
+        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
+        console.log('[System] Local storage reset complete.');
     }
   },
 
