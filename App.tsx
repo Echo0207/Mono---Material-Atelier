@@ -1294,7 +1294,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-paper text-ink">
       <div className="w-full max-w-sm">
         <h1 className="text-4xl font-serif font-bold text-center mb-2 tracking-widest">TiAM</h1>
-        <p className="text-center text-ink-light mb-12 font-serif text-sm tracking-wider uppercase">物料室管理系統</p>
+        <p className="text-center text-ink-light mb-12 font-serif text-sm tracking-wider uppercase">延平店 物料室管理系統</p>
         
         {!dataService.isFirebaseReady() && (
             <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-6 text-xs text-amber-800 flex gap-2 items-start">
