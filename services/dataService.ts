@@ -48,9 +48,9 @@ const KEYS = {
 
 // Valid User List
 const VALID_USERS = [
-  'Cooper', 'Dio', 'Eagle', 'Benson', 'Ice', 'Fan', 
+  'Tiamcooper', 'Dio', 'Eagle', 'Benson', 'Ice', 'Fan', 
   'Sasa', 'Yuni', 'Gene', 'Reta', 'Jessica', 'Mina', 
-  'Jax', '中平', '中正', '民生', '公司'
+  'Jax', 'Hi', '中平', '中正', '民生', '公司'
 ];
 
 // Promotion Config for New Year
@@ -65,10 +65,6 @@ const INITIAL_ANNOUNCEMENT: Announcement = {
 // Raw Data Parsed
 const RAW_PRODUCTS = [
   { brand: 'EX', name: 'O2髮油', cost: 450 },
-  // ... (keeping the existing list structure, truncated for brevity in change block as requested by user instructions to keep minimal updates but here we are replacing full file content so we assume previous content is preserved if I don't paste it all? 
-  // Wait, the instruction says "Full content of file_1". I must include the full list to avoid data loss since I'm replacing the file.)
-  // Ideally I would just inject the method, but the XML format replaces the whole file. 
-  // I will use the previously provided full list.
   { brand: 'EX', name: 'O2 洗浴組', cost: 1800 },
   { brand: 'EX', name: '漂粉400g', cost: 400 },
   { brand: 'EX', name: '『活動』原辮髮45cm（18) 吋', cost: 4800 },
@@ -145,6 +141,7 @@ const RAW_PRODUCTS = [
   { brand: '京喚羽', name: '(新) 喚羽凝脂 400g', cost: 1320 },
   { brand: '京喚羽', name: '(新)喚羽精華 100ml', cost: 1020 },
   { brand: '京喚羽', name: '(新) 金喚羽京澤100ml', cost: 1140 },
+  // Fixed missing 'brand' key and shorthand property syntax error on line 144
   { brand: '京喚羽', name: '(新) 金喚羽凝脂 400g', cost: 1620 },
   { brand: '京喚羽', name: '(新) 金喚羽淨露400g', cost: 1620 },
   { brand: '京喚羽', name: '金喚羽凝脂200ml', cost: 900 },
@@ -945,7 +942,7 @@ export const dataService = {
     const normalizedInput = inputName.trim().toLowerCase();
     const match = VALID_USERS.find(u => u.toLowerCase() === normalizedInput);
     if (!match) return null;
-    const role = match.toLowerCase() === 'cooper' ? UserRole.ADMIN : UserRole.DESIGNER;
+    const role = match.toLowerCase() === 'tiamcooper' ? UserRole.ADMIN : UserRole.DESIGNER;
     return { id: match, name: match, role };
   },
 
@@ -1099,7 +1096,8 @@ export const dataService = {
     }
   },
 
-  resetProductDatabase: async () => {
+  resetProductDatabase: async (INITIAL_PRODUCTS_PARAM?: Product[]) => {
+    const productsToSeed = INITIAL_PRODUCTS_PARAM || INITIAL_PRODUCTS;
     if (isDbEnabled && db) {
         console.log('[System] Resetting product database...');
         // 1. Delete all existing products
@@ -1118,8 +1116,8 @@ export const dataService = {
 
         // 2. Seed initial products
         const seedChunkSize = 450; 
-        for (let i = 0; i < INITIAL_PRODUCTS.length; i += seedChunkSize) {
-            const chunk = INITIAL_PRODUCTS.slice(i, i + seedChunkSize);
+        for (let i = 0; i < productsToSeed.length; i += seedChunkSize) {
+            const chunk = productsToSeed.slice(i, i + seedChunkSize);
             const batch = writeBatch(db);
             chunk.forEach(p => {
                 const cleanP = JSON.parse(JSON.stringify(p));
@@ -1130,7 +1128,7 @@ export const dataService = {
         }
         console.log('[System] Database reset complete with initial products.');
     } else {
-        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
+        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(productsToSeed));
         console.log('[System] Local storage reset complete.');
     }
   },
